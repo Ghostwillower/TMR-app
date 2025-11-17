@@ -1,59 +1,131 @@
 # TMR App - Targeted Memory Reactivation
 
-A mobile application for enhancing memory consolidation during sleep through Targeted Memory Reactivation (TMR).
+A comprehensive mobile application for enhancing memory consolidation during sleep through Targeted Memory Reactivation (TMR).
 
-## Implementation Roadmap
+## 🎉 All 9 Roadmap Steps Complete
 
-This app is being built following a 9-step roadmap, prioritizing demo mode first and preparing for real hardware integration later.
+This app follows a structured 9-step implementation roadmap, now fully complete:
 
-### Progress
+✅ **Step 1** – App shell and demo mode  
+✅ **Step 2** – Real session engine and logging  
+✅ **Step 3** – Cue Manager and audio playback  
+✅ **Step 4** – Learning module and memory tests  
+✅ **Step 5** – Reports and history  
+✅ **Step 6** – Settings, safety, and UX  
+✅ **Step 7** – Better demo mode  
+✅ **Step 8** – Debug/dev tools  
+✅ **Step 9** – Hardware abstraction for real BLE integration  
 
-- [x] **Step 1** – App shell and demo mode ✅
-  - Navigation: Dashboard, Session, Cues, Learning, Reports, Settings
-  - Global app state with demoMode
-  - Demo biometric simulator (HR, movement, temp, sleep stages)
-  - Session screen with Start/Pause/Stop controls
-  - Real-time biometric display using simulated data
-  
-- [ ] **Step 2** – Real session engine and logging
-- [ ] **Step 3** – Cue Manager and audio playback
-- [ ] **Step 4** – Learning module and memory tests
-- [ ] **Step 5** – Reports and history
-- [ ] **Step 6** – Settings, safety, and UX
-- [ ] **Step 7** – Better demo mode
-- [ ] **Step 8** – Debug/dev tools (optional)
-- [ ] **Step 9** – Prepare for real hardware integration
+## Features
 
-## Current Features (Step 1)
+### Core Functionality
+
+**Session Management**
+- Start/pause/stop sleep sessions with optional notes
+- Real-time biometric monitoring (HR, movement, temperature, sleep stage)
+- Automatic logging at fixed intervals
+- Session summary with time spent in each sleep stage
+- Persistent storage in local AsyncStorage
+
+**Cue Management**
+- Add, delete, rename, and toggle audio cues
+- Create active cue sets for each session
+- Test button to preview cues
+- Low-volume playback (30%) during sleep
+- Safety enforcement: cues only during Light/Deep stages
+
+**Learning Module**
+- Flashcard system with front/back text
+- Link cues to specific learning items
+- Pre-sleep and post-sleep testing
+- Memory boost calculation (cued vs uncued performance)
+- Correct/incorrect tracking for spaced repetition
+
+**Reports & Analytics**
+- Session history with date, duration, cues played
+- Detailed session view:
+  - Sleep stage timeline (visual progress bars)
+  - Biometric summary (avg HR, movement)
+  - Cue timestamps with sleep stages
+  - Export session data as JSON
+- Memory boost analysis when tests exist
+
+**Safety Features**
+- Cues only play during Light or Deep sleep (never Awake/REM)
+- Movement threshold check (default: < 30)
+- HR spike detection (default: < 20 bpm change)
+- Cooldown period between cues (default: 120 seconds)
+- Maximum cues per session (default: 10)
+- All thresholds configurable in Settings
 
 ### Demo Mode
-- Realistic sleep cycle simulation: Awake → Light → Deep → Light → REM
-- Simulated biometric data:
-  - Heart Rate (varies by sleep stage)
-  - Movement (varies by sleep stage)
-  - Temperature
-  - Sleep Stage transitions
+
+The app runs in **Demo Mode** by default with realistic sleep simulation:
+
+**Sleep Cycle Simulation**
+- Cycles through: Awake → Light → Deep → Light → REM (repeating)
+- Stage durations: Awake (5m), Light (10m), Deep (15m), REM (10m)
 - Updates every 2 seconds
 
-### Session Management
-- Start/Pause/Stop session controls
-- Real-time biometric display
-- Session duration tracking
-- Status indicators
+**Biometric Simulation**
+- Heart Rate varies by stage: Awake (75), Light (65), Deep (55), REM (70) bpm
+- Movement varies by stage: Awake (50), Light (20), Deep (5), REM (30)
+- Temperature: 36.5°C ± 0.25°C
+- Random spikes (5% chance) to test safety logic
 
-### User Interface
-- **Dashboard**: Overview and quick actions
-- **Session**: Active session monitoring with live biometrics
-- **Cues**: Placeholder (Coming in Step 3)
-- **Learning**: Placeholder (Coming in Step 4)
-- **Reports**: Placeholder (Coming in Step 5)
-- **Settings**: Demo mode toggle and progress tracker
+## Architecture
+
+### Technology Stack
+- **Framework**: Expo (React Native)
+- **Language**: TypeScript (strict mode)
+- **Navigation**: React Navigation (Bottom Tabs)
+- **State Management**: React Context API
+- **Storage**: AsyncStorage
+- **Audio**: Expo AV
+
+### Project Structure
+```
+src/
+├── contexts/
+│   └── AppContext.tsx         # Global state management
+├── models/
+│   └── types.ts               # Legacy types (being phased out)
+├── screens/
+│   ├── DashboardScreen.tsx    # Home overview
+│   ├── SessionScreen.tsx      # Active session monitoring
+│   ├── CuesScreen.tsx         # Cue management
+│   ├── LearningScreen.tsx     # Flashcards and learning
+│   ├── ReportsScreen.tsx      # Session history and analytics
+│   └── SettingsScreen.tsx     # App configuration
+├── services/
+│   ├── SessionEngine.ts       # Session lifecycle and logging
+│   ├── CueManager.ts          # Audio cue management
+│   ├── LearningModule.ts      # Flashcards and tests
+│   ├── BiometricSource.ts     # Input abstraction (Demo/Real)
+│   └── CueOutput.ts           # Output abstraction (Phone/Hub)
+└── utils/
+    └── DemoBiometricSimulator.ts  # Realistic sleep simulation
+```
+
+### Hardware Abstraction (Step 9)
+
+The app is architected for easy hardware integration:
+
+**BiometricSource Interface**
+- `DemoBiometricSource`: Current simulator (working)
+- `RealBiometricSource`: Stub for future BLE wristband
+
+**CueOutput Interface**
+- `PhoneSpeakerOutput`: Current audio playback (working)
+- `HubOutput`: Stub for future wall hub integration
+
+The session engine depends only on these interfaces, making it trivial to swap implementations when real hardware is available.
 
 ## Getting Started
 
 ### Prerequisites
 - Node.js 18+ and npm
-- Expo CLI
+- Expo CLI: `npm install -g expo-cli`
 - iOS Simulator or Android Emulator (or physical device with Expo Go)
 
 ### Installation
@@ -78,94 +150,147 @@ npm run ios
 npm run android
 ```
 
-## Architecture
+## Usage Guide
 
-### Technology Stack
-- **Framework**: Expo (React Native)
-- **Language**: TypeScript
-- **Navigation**: React Navigation (Bottom Tabs)
-- **State Management**: React Context API
-- **Demo Simulator**: Custom class with sleep cycle logic
+### 1. Quick Start (Demo Mode)
 
-### Project Structure
+1. **Dashboard**: View app status and quick actions
+2. **Session**: Press "Start Session" to begin monitoring
+3. Watch live biometrics update in real-time
+4. See sleep stage transitions (Awake → Light → Deep → REM)
+5. Press "Stop" to end session and save data
+
+### 2. Adding Cues
+
+1. Navigate to **Cues** screen
+2. Press "+ Add Cue" button
+3. Enter cue name (audio file simulation in demo mode)
+4. Create a cue set and activate it for your next session
+
+### 3. Learning Items
+
+1. Navigate to **Learning** screen
+2. Press "+ Add Item" button
+3. Enter question (front) and answer (back)
+4. Optionally link to a cue for TMR
+5. Use "Study" to practice with flashcards
+
+### 4. Viewing Reports
+
+1. Complete at least one sleep session
+2. Navigate to **Reports** screen
+3. Tap on any session to see detailed analytics
+4. View sleep stage timeline, cue performance, biometrics
+5. Export session data as JSON if needed
+
+### 5. Configuring Safety
+
+1. Navigate to **Settings** screen
+2. Adjust cue safety parameters:
+   - Max cues per session
+   - Minimum seconds between cues
+   - Movement threshold
+   - HR spike threshold
+3. Changes apply to all future sessions
+
+## Safety Logic
+
+The cue engine uses multiple safety checks:
+
+```typescript
+function isCueAllowed(data: BiometricData): boolean {
+  // Rule 1: Stage must be Light or Deep
+  if (stage !== 'Light' && stage !== 'Deep') return false;
+  
+  // Rule 2: Movement must be low
+  if (movement > threshold) return false;
+  
+  // Rule 3: No HR spike
+  if (abs(currentHR - lastHR) > threshold) return false;
+  
+  // Rule 4: Cooldown period
+  if (timeSinceLastCue < minSeconds) return false;
+  
+  // Rule 5: Max cues per session
+  if (cuesPlayed >= maxCues) return false;
+  
+  return true;
+}
 ```
-src/
-├── contexts/         # React Context providers
-│   └── AppContext.tsx
-├── models/          # TypeScript interfaces (legacy, being phased out)
-├── screens/         # Main application screens
-│   ├── DashboardScreen.tsx
-│   ├── SessionScreen.tsx
-│   ├── CuesScreen.tsx
-│   ├── LearningScreen.tsx
-│   ├── ReportsScreen.tsx
-│   └── SettingsScreen.tsx
-├── services/        # Business logic (legacy, being refactored)
-└── utils/           # Helper functions and utilities
-    └── DemoBiometricSimulator.ts
-```
 
-## Demo Mode Features
+## Data Storage
 
-The app currently runs in **Demo Mode** by default, which:
-- Simulates realistic sleep cycles
-- Generates biometric data based on sleep stage
-- Provides the full user experience without hardware
-- Can be toggled in Settings
+All data is stored locally using AsyncStorage:
 
-### Sleep Stage Simulation
+- **Sessions**: `tmr_sessions`
+- **Cues**: `tmr_cues`
+- **Cue Sets**: `tmr_cue_sets`
+- **Learning Items**: `tmr_learning_items`
+- **Memory Tests**: `tmr_memory_tests`
 
-The simulator cycles through stages with realistic transitions:
+No cloud synchronization. Data stays on your device. Can be cleared via Settings → Clear All Data.
 
-| Stage | Duration | Heart Rate | Movement | Color |
-|-------|----------|------------|----------|-------|
-| Awake | 5 min | ~75 bpm | High (~50) | Red |
-| Light | 10 min | ~65 bpm | Medium (~20) | Yellow |
-| Deep | 15 min | ~55 bpm | Low (~5) | Blue |
-| Light | 10 min | ~65 bpm | Medium (~20) | Yellow |
-| REM | 10 min | ~70 bpm | Medium (~30) | Purple |
+## Future: Real Hardware Integration
 
-Occasional spikes in heart rate and movement are simulated (5% chance per reading).
+When BLE hardware becomes available:
 
-## Future Hardware Integration
+1. **Wristband Integration**:
+   - Update `RealBiometricSource` to connect via BLE
+   - Read HR, movement, temperature, sleep stage characteristics
+   - Service UUID: TBD by hardware vendor
 
-**Real Mode** (Step 9) will support:
-- BLE wristband for biometric monitoring
-- Wall hub for audio cue playback
-- Abstracted interfaces for easy hardware swap
+2. **Wall Hub Integration**:
+   - Update `HubOutput` to trigger audio via HTTP/WebSocket/BLE
+   - Send cue ID and volume level
+   - Connection endpoint: TBD by hardware vendor
 
-Currently, enabling "Real Mode" in settings will show a notice that it's not yet implemented.
+3. **Toggle Mode**:
+   - Settings → Demo Mode (OFF)
+   - App will use real hardware implementations
+   - All logic remains the same
 
 ## Development
 
-### Current Sprint: Step 1 ✅
+### Testing
+```bash
+npm test
+```
 
-Step 1 is complete with:
-- Working demo mode simulation
-- Session start/pause/stop functionality
-- Real-time biometric updates
-- Clean navigation structure
-- Settings with mode toggle
+### Linting
+```bash
+npm run lint
+```
 
-### Next Sprint: Step 2
+### Building
+```bash
+# iOS
+expo build:ios
 
-Will implement:
-- Session data model and persistence
-- Biometric logging at fixed intervals
-- cueAllowed logic based on sleep stage and movement
-- Session summary view
-- Local storage (JSON/AsyncStorage)
+# Android
+expo build:android
+```
 
-## Testing
+## Troubleshooting
 
-The app is designed to be fully functional in demo mode, allowing testing without any hardware:
+**Sessions not saving?**
+- Check AsyncStorage permissions
+- Try clearing app cache and restarting
 
-1. Launch the app
-2. Navigate to Session screen
-3. Press "Start Session"
-4. Watch biometrics update in real-time
-5. Observe sleep stage transitions
-6. Press "Stop" to end the session
+**Cues not playing in demo mode?**
+- This is normal - demo mode simulates playback without actual audio
+- Audio files will work when added in real implementation
+
+**Can't toggle Demo Mode off?**
+- Real Mode shows "not implemented" notice
+- This is intentional - BLE integration pending hardware availability
+
+## Contributing
+
+When contributing:
+1. Follow existing TypeScript patterns
+2. Maintain interface abstractions
+3. Write tests for new features
+4. Update documentation
 
 ## License
 
@@ -173,4 +298,4 @@ MIT License
 
 ## Support
 
-For issues or questions, please open an issue on the GitHub repository.
+For issues or questions, please open an issue on GitHub.
