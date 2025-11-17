@@ -1,58 +1,41 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  TextInput,
+  Modal,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
-import { DemoBiometricSimulator, BiometricData } from '../utils/DemoBiometricSimulator';
 
 export const SessionScreen: React.FC = () => {
-  const { demoMode, currentSession, startSession, pauseSession, stopSession } = useApp();
-  const [currentBiometrics, setCurrentBiometrics] = useState<BiometricData | null>(null);
-  const [biometricsHistory, setBiometricsHistory] = useState<BiometricData[]>([]);
-  const simulatorRef = useRef<DemoBiometricSimulator | null>(null);
+  const { 
+    demoMode, 
+    currentSession, 
+    currentBiometrics,
+    startSession, 
+    pauseSession, 
+    resumeSession,
+    stopSession 
+  } = useApp();
+  
+  const [showNotesModal, setShowNotesModal] = useState(false);
+  const [notes, setNotes] = useState('');
 
-  useEffect(() => {
-    if (demoMode && currentSession && currentSession.status === 'active') {
-      // Start demo simulator
-      if (!simulatorRef.current) {
-        simulatorRef.current = new DemoBiometricSimulator((data) => {
-          setCurrentBiometrics(data);
-          setBiometricsHistory(prev => [...prev, data].slice(-100)); // Keep last 100 readings
-        });
-        simulatorRef.current.start();
-      }
+  const handleStart = async () => {
+    if (notes.trim()) {
+      await startSession(notes);
     } else {
-      // Stop simulator
-      if (simulatorRef.current) {
-        simulatorRef.current.stop();
-        simulatorRef.current = null;
-      }
+      await startSession();
     }
-
-    return () => {
-      if (simulatorRef.current) {
-        simulatorRef.current.stop();
-      }
-    };
-  }, [demoMode, currentSession]);
-
-  const handleStart = () => {
-    startSession();
-    setBiometricsHistory([]);
+    setShowNotesModal(false);
+    setNotes('');
   };
 
-  const handlePause = () => {
-    pauseSession();
-  };
-
-  const handleStop = () => {
-    stopSession();
-    setCurrentBiometrics(null);
-    setBiometricsHistory([]);
+  const handleStop = async () => {
+    await stopSession();
   };
 
   const getSleepStageColor = (stage: string) => {
@@ -70,6 +53,12 @@ export const SessionScreen: React.FC = () => {
     const minutes = Math.floor(seconds / 60);
     const hours = Math.floor(minutes / 60);
     return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
+  };
+
+  const formatTime = (ms: number) => {
+    const minutes = Math.floor(ms / 60000);
+    const seconds = Math.floor((ms % 60000) / 1000);
+    return `${minutes}m ${seconds}s`;
   };
 
   if (!currentSession) {
@@ -94,21 +83,59 @@ export const SessionScreen: React.FC = () => {
             </View>
           )}
 
-          <TouchableOpacity style={styles.startButton} onPress={handleStart}>
+          <TouchableOpacity 
+            style={styles.startButton} 
+            onPress={() => setShowNotesModal(true)}
+          >
             <Text style={styles.startButtonText}>Start Session</Text>
           </TouchableOpacity>
         </View>
+
+        <Modal
+          visible={showNotesModal}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowNotesModal(false)}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Session Notes (Optional)</Text>
+              <TextInput
+                style={styles.notesInput}
+                placeholder="Add notes for this session..."
+                value={notes}
+                onChangeText={setNotes}
+                multiline
+                numberOfLines={4}
+              />
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={styles.modalButton}
+                  onPress={() => setShowNotesModal(false)}
+                >
+                  <Text style={styles.modalButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalButtonPrimary]}
+                  onPress={handleStart}
+                >
+                  <Text style={styles.modalButtonText}>Start</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </View>
     );
   }
+
+  const duration = Date.now() - currentSession.startTime;
 
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Active Session</Text>
-        <Text style={styles.headerSubtext}>
-          {formatDuration(Date.now() - currentSession.startTime)}
-        </Text>
+        <Text style={styles.headerSubtext}>{formatDuration(duration)}</Text>
       </View>
 
       {currentBiometrics && (
@@ -152,22 +179,68 @@ export const SessionScreen: React.FC = () => {
             <View style={styles.biometricRow}>
               <Text style={styles.biometricLabel}>📊 Readings</Text>
               <Text style={styles.biometricValue}>
-                {biometricsHistory.length}
+                {currentSession.biometricLogs.length}
               </Text>
             </View>
           </View>
         </>
       )}
 
+      <View style={styles.summaryCard}>
+        <Text style={styles.cardTitle}>Session Summary</Text>
+        
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Time in Awake:</Text>
+          <Text style={styles.summaryValue}>
+            {formatTime(currentSession.stageTimings.Awake)}
+          </Text>
+        </View>
+        
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Time in Light:</Text>
+          <Text style={styles.summaryValue}>
+            {formatTime(currentSession.stageTimings.Light)}
+          </Text>
+        </View>
+        
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Time in Deep:</Text>
+          <Text style={styles.summaryValue}>
+            {formatTime(currentSession.stageTimings.Deep)}
+          </Text>
+        </View>
+        
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Time in REM:</Text>
+          <Text style={styles.summaryValue}>
+            {formatTime(currentSession.stageTimings.REM)}
+          </Text>
+        </View>
+
+        <View style={[styles.summaryRow, styles.highlightRow]}>
+          <Text style={styles.summaryLabel}>Cue Allowed Count:</Text>
+          <Text style={styles.summaryValue}>
+            {currentSession.cueAllowedCount}
+          </Text>
+        </View>
+
+        <View style={[styles.summaryRow, styles.highlightRow]}>
+          <Text style={styles.summaryLabel}>Cues Played:</Text>
+          <Text style={styles.summaryValue}>
+            {currentSession.cuesPlayed.length}
+          </Text>
+        </View>
+      </View>
+
       <View style={styles.controlsCard}>
         <Text style={styles.cardTitle}>Session Controls</Text>
         <View style={styles.buttonRow}>
           {currentSession.status === 'active' ? (
-            <TouchableOpacity style={styles.pauseButton} onPress={handlePause}>
+            <TouchableOpacity style={styles.pauseButton} onPress={pauseSession}>
               <Text style={styles.buttonText}>⏸️ Pause</Text>
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity style={styles.resumeButton} onPress={startSession}>
+            <TouchableOpacity style={styles.resumeButton} onPress={resumeSession}>
               <Text style={styles.buttonText}>▶️ Resume</Text>
             </TouchableOpacity>
           )}
@@ -297,6 +370,35 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
   },
+  summaryCard: {
+    backgroundColor: '#fff',
+    margin: 15,
+    padding: 20,
+    borderRadius: 10,
+    elevation: 3,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  summaryLabel: {
+    fontSize: 14,
+    color: '#666',
+  },
+  summaryValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+  },
+  highlightRow: {
+    backgroundColor: '#e3f2fd',
+    paddingHorizontal: 10,
+    borderRadius: 5,
+    marginVertical: 5,
+  },
   controlsCard: {
     backgroundColor: '#fff',
     margin: 15,
@@ -332,6 +434,53 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 20,
+    width: '85%',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 15,
+    color: '#333',
+  },
+  notesInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 15,
+    minHeight: 100,
+    textAlignVertical: 'top',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  modalButton: {
+    flex: 1,
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginHorizontal: 5,
+    backgroundColor: '#999',
+  },
+  modalButtonPrimary: {
+    backgroundColor: '#6200ee',
+  },
+  modalButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
