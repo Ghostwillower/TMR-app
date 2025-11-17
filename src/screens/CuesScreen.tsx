@@ -1,16 +1,16 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
-export const LearningScreen: React.FC = () => {
+export const CuesScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Learning</Text>
+        <Text style={styles.title}>Cue Manager</Text>
       </View>
       <View style={styles.content}>
-        <Text style={styles.placeholderText}>📚 Learning Module</Text>
+        <Text style={styles.placeholderText}>🎵 Cue Manager</Text>
         <Text style={styles.placeholderSubtext}>
-          Coming in Step 4: Flashcards and memory tests
+          Coming in Step 3: Add and manage audio cues
         </Text>
       </View>
     </View>

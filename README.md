@@ -2,54 +2,52 @@
 
 A mobile application for enhancing memory consolidation during sleep through Targeted Memory Reactivation (TMR).
 
-## Features
+## Implementation Roadmap
 
-### Core Functionality
-- **BLE Connectivity**: Connect to TMR wristband and wall hub via Bluetooth Low Energy
-- **Sleep Session Management**: Track and manage sleep sessions with real-time monitoring
-- **Biometric Data Collection**: Receive heart rate, movement, temperature data from wristband
-- **Sleep Stage Detection**: Monitor and track sleep stages (AWAKE, NREM1, NREM2, NREM3, REM)
-- **Smart Audio Cue Playback**: Automatically trigger audio cues during safe NREM periods
-- **Local Data Storage**: All data stored locally using AsyncStorage
-- **Cue Set Management**: Create and manage audio cue sets linked to learning sessions
-- **Learning Session Tracking**: Track learning sessions and associate them with cue sets
-- **Daily Reports**: Generate comprehensive sleep and memory performance reports
+This app is being built following a 9-step roadmap, prioritizing demo mode first and preparing for real hardware integration later.
+
+### Progress
+
+- [x] **Step 1** – App shell and demo mode ✅
+  - Navigation: Dashboard, Session, Cues, Learning, Reports, Settings
+  - Global app state with demoMode
+  - Demo biometric simulator (HR, movement, temp, sleep stages)
+  - Session screen with Start/Pause/Stop controls
+  - Real-time biometric display using simulated data
+  
+- [ ] **Step 2** – Real session engine and logging
+- [ ] **Step 3** – Cue Manager and audio playback
+- [ ] **Step 4** – Learning module and memory tests
+- [ ] **Step 5** – Reports and history
+- [ ] **Step 6** – Settings, safety, and UX
+- [ ] **Step 7** – Better demo mode
+- [ ] **Step 8** – Debug/dev tools (optional)
+- [ ] **Step 9** – Prepare for real hardware integration
+
+## Current Features (Step 1)
+
+### Demo Mode
+- Realistic sleep cycle simulation: Awake → Light → Deep → Light → REM
+- Simulated biometric data:
+  - Heart Rate (varies by sleep stage)
+  - Movement (varies by sleep stage)
+  - Temperature
+  - Sleep Stage transitions
+- Updates every 2 seconds
+
+### Session Management
+- Start/Pause/Stop session controls
+- Real-time biometric display
+- Session duration tracking
+- Status indicators
 
 ### User Interface
-- **Home Screen**: Dashboard with device status, session overview, and quick actions
-- **Devices Screen**: Scan for and manage BLE device connections
-- **Session Screen**: Start/stop sleep sessions and monitor real-time progress
-- **Cue Sets Screen**: Create and manage audio cue collections
-- **Learning Screen**: Track learning sessions for memory enhancement
-- **Reports Screen**: View detailed daily sleep and memory reports
-- **Settings Screen**: App configuration and data management
-
-## Architecture
-
-### Technology Stack
-- **Framework**: Expo (React Native)
-- **Language**: TypeScript
-- **Navigation**: React Navigation (Bottom Tabs)
-- **State Management**: React Context API
-- **BLE**: react-native-ble-plx
-- **Storage**: AsyncStorage
-- **Audio**: Expo AV
-- **Charts**: react-native-chart-kit
-
-### Project Structure
-```
-src/
-├── components/       # Reusable UI components
-├── contexts/         # React Context providers
-├── models/          # TypeScript interfaces and types
-├── screens/         # Main application screens
-├── services/        # Business logic and external integrations
-│   ├── BLEService.ts           # Bluetooth connectivity
-│   ├── StorageService.ts       # Local data persistence
-│   ├── SleepSessionManager.ts  # Sleep session orchestration
-│   └── ReportService.ts        # Report generation
-└── utils/           # Helper functions and utilities
-```
+- **Dashboard**: Overview and quick actions
+- **Session**: Active session monitoring with live biometrics
+- **Cues**: Placeholder (Coming in Step 3)
+- **Learning**: Placeholder (Coming in Step 4)
+- **Reports**: Placeholder (Coming in Step 5)
+- **Settings**: Demo mode toggle and progress tracker
 
 ## Getting Started
 
@@ -80,64 +78,94 @@ npm run ios
 npm run android
 ```
 
-### BLE Device Requirements
+## Architecture
 
-The app expects TMR devices with the following characteristics:
+### Technology Stack
+- **Framework**: Expo (React Native)
+- **Language**: TypeScript
+- **Navigation**: React Navigation (Bottom Tabs)
+- **State Management**: React Context API
+- **Demo Simulator**: Custom class with sleep cycle logic
 
-**Wristband (Service UUID: 0000180d-0000-1000-8000-00805f9b34fb)**
-- Heart Rate: 00002a37-0000-1000-8000-00805f9b34fb
-- Movement: 00002a38-0000-1000-8000-00805f9b34fb
-- Temperature: 00002a1c-0000-1000-8000-00805f9b34fb
-- Sleep Stage: 00002a39-0000-1000-8000-00805f9b34fb
+### Project Structure
+```
+src/
+├── contexts/         # React Context providers
+│   └── AppContext.tsx
+├── models/          # TypeScript interfaces (legacy, being phased out)
+├── screens/         # Main application screens
+│   ├── DashboardScreen.tsx
+│   ├── SessionScreen.tsx
+│   ├── CuesScreen.tsx
+│   ├── LearningScreen.tsx
+│   ├── ReportsScreen.tsx
+│   └── SettingsScreen.tsx
+├── services/        # Business logic (legacy, being refactored)
+└── utils/           # Helper functions and utilities
+    └── DemoBiometricSimulator.ts
+```
 
-**Hub (Service UUID: 0000180a-0000-1000-8000-00805f9b34fb)**
-- Audio Cue Trigger: 00002a3a-0000-1000-8000-00805f9b34fb
+## Demo Mode Features
 
-## Usage Workflow
+The app currently runs in **Demo Mode** by default, which:
+- Simulates realistic sleep cycles
+- Generates biometric data based on sleep stage
+- Provides the full user experience without hardware
+- Can be toggled in Settings
 
-1. **Setup Devices**
-   - Navigate to Devices screen
-   - Scan for TMR wristband and wall hub
-   - Connect both devices
+### Sleep Stage Simulation
 
-2. **Create Learning Content**
-   - Go to Learning screen
-   - Create a learning session (e.g., "Spanish Vocabulary")
-   - Go to Cue Sets screen
-   - Create a cue set with audio files for that learning session
+The simulator cycles through stages with realistic transitions:
 
-3. **Start Sleep Session**
-   - Navigate to Session screen
-   - Select your cue set (optional)
-   - Start the sleep session before going to sleep
-   - The app will monitor sleep stages and play cues during NREM2/NREM3
+| Stage | Duration | Heart Rate | Movement | Color |
+|-------|----------|------------|----------|-------|
+| Awake | 5 min | ~75 bpm | High (~50) | Red |
+| Light | 10 min | ~65 bpm | Medium (~20) | Yellow |
+| Deep | 15 min | ~55 bpm | Low (~5) | Blue |
+| Light | 10 min | ~65 bpm | Medium (~20) | Yellow |
+| REM | 10 min | ~70 bpm | Medium (~30) | Purple |
 
-4. **End Session & View Reports**
-   - When you wake up, end the sleep session
-   - Go to Reports screen to view your sleep quality and memory performance
-   - Review recommendations for improvement
+Occasional spikes in heart rate and movement are simulated (5% chance per reading).
 
-## Safety Features
+## Future Hardware Integration
 
-- **NREM-Only Playback**: Audio cues only play during NREM2 and NREM3 stages to avoid disrupting REM sleep
-- **Local Storage**: All data remains on your device - no cloud uploads
-- **Non-Intrusive**: Cues play at low volume to maintain sleep quality
+**Real Mode** (Step 9) will support:
+- BLE wristband for biometric monitoring
+- Wall hub for audio cue playback
+- Abstracted interfaces for easy hardware swap
 
-## Data Privacy
-
-All data is stored locally on your device using AsyncStorage. No data is transmitted to external servers. You can clear all data at any time from the Settings screen.
+Currently, enabling "Real Mode" in settings will show a notice that it's not yet implemented.
 
 ## Development
 
-### Linting
-```bash
-npm run lint
-```
+### Current Sprint: Step 1 ✅
 
-### Testing
-```bash
-npm test
-```
+Step 1 is complete with:
+- Working demo mode simulation
+- Session start/pause/stop functionality
+- Real-time biometric updates
+- Clean navigation structure
+- Settings with mode toggle
+
+### Next Sprint: Step 2
+
+Will implement:
+- Session data model and persistence
+- Biometric logging at fixed intervals
+- cueAllowed logic based on sleep stage and movement
+- Session summary view
+- Local storage (JSON/AsyncStorage)
+
+## Testing
+
+The app is designed to be fully functional in demo mode, allowing testing without any hardware:
+
+1. Launch the app
+2. Navigate to Session screen
+3. Press "Start Session"
+4. Watch biometrics update in real-time
+5. Observe sleep stage transitions
+6. Press "Stop" to end the session
 
 ## License
 

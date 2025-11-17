@@ -3,10 +3,9 @@ import { Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { AppProvider } from './src/contexts/AppContext';
-import { HomeScreen } from './src/screens/HomeScreen';
-import { DevicesScreen } from './src/screens/DevicesScreen';
+import { DashboardScreen } from './src/screens/DashboardScreen';
 import { SessionScreen } from './src/screens/SessionScreen';
-import { CueSetsScreen } from './src/screens/CueSetsScreen';
+import { CuesScreen } from './src/screens/CuesScreen';
 import { LearningScreen } from './src/screens/LearningScreen';
 import { ReportsScreen } from './src/screens/ReportsScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
@@ -34,19 +33,11 @@ export default function App() {
           }}
         >
           <Tab.Screen
-            name="Home"
-            component={HomeScreen}
+            name="Dashboard"
+            component={DashboardScreen}
             options={{
-              tabBarLabel: 'Home',
+              tabBarLabel: 'Dashboard',
               tabBarIcon: () => <TabIcon icon="🏠" />,
-            }}
-          />
-          <Tab.Screen
-            name="Devices"
-            component={DevicesScreen}
-            options={{
-              tabBarLabel: 'Devices',
-              tabBarIcon: () => <TabIcon icon="📡" />,
             }}
           />
           <Tab.Screen
@@ -58,8 +49,8 @@ export default function App() {
             }}
           />
           <Tab.Screen
-            name="CueSets"
-            component={CueSetsScreen}
+            name="Cues"
+            component={CuesScreen}
             options={{
               tabBarLabel: 'Cues',
               tabBarIcon: () => <TabIcon icon="🎵" />,

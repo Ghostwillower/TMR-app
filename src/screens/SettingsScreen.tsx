@@ -4,33 +4,13 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Alert,
   ScrollView,
+  Switch,
 } from 'react-native';
-import { storageService } from '../services/StorageService';
+import { useApp } from '../contexts/AppContext';
 
 export const SettingsScreen: React.FC = () => {
-  const handleClearData = () => {
-    Alert.alert(
-      'Clear All Data',
-      'This will delete all sleep sessions, cue sets, learning sessions, and reports. This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await storageService.clearAllData();
-              Alert.alert('Success', 'All data has been cleared');
-            } catch (error) {
-              Alert.alert('Error', 'Failed to clear data');
-            }
-          },
-        },
-      ]
-    );
-  };
+  const { demoMode, settings, toggleDemoMode, toggleDarkMode } = useApp();
 
   return (
     <ScrollView style={styles.container}>
@@ -39,57 +19,76 @@ export const SettingsScreen: React.FC = () => {
       </View>
 
       <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Mode</Text>
+        <View style={styles.settingRow}>
+          <View style={styles.settingInfo}>
+            <Text style={styles.settingLabel}>Demo Mode</Text>
+            <Text style={styles.settingDescription}>
+              Use simulated biometric data for testing
+            </Text>
+          </View>
+          <Switch
+            value={demoMode}
+            onValueChange={toggleDemoMode}
+            trackColor={{ false: '#767577', true: '#81b0ff' }}
+            thumbColor={demoMode ? '#6200ee' : '#f4f3f4'}
+          />
+        </View>
+        {!demoMode && (
+          <View style={styles.notice}>
+            <Text style={styles.noticeText}>
+              ⚠️ Real Mode not yet implemented. BLE connectivity coming in Step 9.
+            </Text>
+          </View>
+        )}
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Appearance</Text>
+        <View style={styles.settingRow}>
+          <View style={styles.settingInfo}>
+            <Text style={styles.settingLabel}>Dark Mode</Text>
+            <Text style={styles.settingDescription}>
+              Use dark theme (Coming in Step 6)
+            </Text>
+          </View>
+          <Switch
+            value={settings.darkMode}
+            onValueChange={toggleDarkMode}
+            trackColor={{ false: '#767577', true: '#81b0ff' }}
+            thumbColor={settings.darkMode ? '#6200ee' : '#f4f3f4'}
+            disabled={true}
+          />
+        </View>
+      </View>
+
+      <View style={styles.section}>
         <Text style={styles.sectionTitle}>About</Text>
         <View style={styles.infoCard}>
           <Text style={styles.infoText}>
             TMR App - Targeted Memory Reactivation
           </Text>
-          <Text style={styles.versionText}>Version 1.0.0</Text>
+          <Text style={styles.versionText}>Version 1.0.0 (Step 1)</Text>
           <Text style={styles.descriptionText}>
-            This app helps enhance memory consolidation during sleep by playing
-            audio cues at optimal times during NREM sleep stages.
+            This app enhances memory consolidation during sleep by playing
+            audio cues at optimal times.
           </Text>
         </View>
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>How It Works</Text>
-        <View style={styles.infoCard}>
-          <Text style={styles.stepText}>
-            1. Create learning sessions for topics you want to remember
-          </Text>
-          <Text style={styles.stepText}>
-            2. Create cue sets with audio cues linked to those learning sessions
-          </Text>
-          <Text style={styles.stepText}>
-            3. Connect your wristband and wall hub via Bluetooth
-          </Text>
-          <Text style={styles.stepText}>
-            4. Start a sleep session with your selected cue set
-          </Text>
-          <Text style={styles.stepText}>
-            5. The app monitors your sleep stages and plays cues during safe NREM periods
-          </Text>
-          <Text style={styles.stepText}>
-            6. Review your sleep and memory reports to track progress
-          </Text>
+        <Text style={styles.sectionTitle}>Implementation Progress</Text>
+        <View style={styles.progressCard}>
+          <Text style={styles.progressItem}>✅ Step 1: App shell and demo mode</Text>
+          <Text style={styles.progressItem}>⬜ Step 2: Session engine and logging</Text>
+          <Text style={styles.progressItem}>⬜ Step 3: Cue Manager and audio</Text>
+          <Text style={styles.progressItem}>⬜ Step 4: Learning module</Text>
+          <Text style={styles.progressItem}>⬜ Step 5: Reports and history</Text>
+          <Text style={styles.progressItem}>⬜ Step 6: Settings and safety</Text>
+          <Text style={styles.progressItem}>⬜ Step 7: Better demo mode</Text>
+          <Text style={styles.progressItem}>⬜ Step 8: Debug tools</Text>
+          <Text style={styles.progressItem}>⬜ Step 9: Hardware integration</Text>
         </View>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Data Management</Text>
-        <TouchableOpacity
-          style={styles.dangerButton}
-          onPress={handleClearData}
-        >
-          <Text style={styles.dangerButtonText}>Clear All Data</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>
-          All data is stored locally on your device
-        </Text>
       </View>
     </ScrollView>
   );
@@ -118,11 +117,45 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     color: '#333',
   },
+  settingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 10,
+    elevation: 2,
+  },
+  settingInfo: {
+    flex: 1,
+    marginRight: 15,
+  },
+  settingLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  settingDescription: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 5,
+  },
+  notice: {
+    backgroundColor: '#fff3cd',
+    padding: 15,
+    borderRadius: 8,
+    marginTop: 10,
+  },
+  noticeText: {
+    fontSize: 14,
+    color: '#856404',
+  },
   infoCard: {
     backgroundColor: '#fff',
     padding: 20,
     borderRadius: 10,
-    elevation: 3,
+    elevation: 2,
   },
   infoText: {
     fontSize: 16,
@@ -140,30 +173,15 @@ const styles = StyleSheet.create({
     color: '#666',
     lineHeight: 20,
   },
-  stepText: {
-    fontSize: 14,
-    color: '#666',
-    marginVertical: 5,
-    lineHeight: 20,
-  },
-  dangerButton: {
-    backgroundColor: '#d32f2f',
-    padding: 15,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  dangerButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  footer: {
+  progressCard: {
+    backgroundColor: '#fff',
     padding: 20,
-    alignItems: 'center',
+    borderRadius: 10,
+    elevation: 2,
   },
-  footerText: {
-    fontSize: 12,
-    color: '#999',
-    textAlign: 'center',
+  progressItem: {
+    fontSize: 14,
+    color: '#333',
+    marginVertical: 5,
   },
 });
