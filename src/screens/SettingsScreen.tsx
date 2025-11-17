@@ -6,11 +6,31 @@ import {
   TouchableOpacity,
   ScrollView,
   Switch,
+  TextInput,
+  Alert,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 
 export const SettingsScreen: React.FC = () => {
-  const { demoMode, settings, toggleDemoMode, toggleDarkMode } = useApp();
+  const { demoMode, settings, toggleDemoMode, toggleDarkMode, updateSettings, clearAllData } = useApp();
+
+  const handleClearData = () => {
+    Alert.alert(
+      'Clear All Data',
+      'This will delete all sessions, cues, learning items, and tests. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear',
+          style: 'destructive',
+          onPress: async () => {
+            await clearAllData();
+            Alert.alert('Success', 'All data has been cleared');
+          },
+        },
+      ]
+    );
+  };
 
   return (
     <ScrollView style={styles.container}>
@@ -44,12 +64,68 @@ export const SettingsScreen: React.FC = () => {
       </View>
 
       <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Cue Safety Settings</Text>
+        
+        <View style={styles.settingRow}>
+          <Text style={styles.settingLabel}>Max Cues Per Session</Text>
+          <TextInput
+            style={styles.input}
+            value={settings.maxCuesPerSession.toString()}
+            onChangeText={(text) => {
+              const value = parseInt(text) || 0;
+              updateSettings({ maxCuesPerSession: value });
+            }}
+            keyboardType="number-pad"
+          />
+        </View>
+
+        <View style={styles.settingRow}>
+          <Text style={styles.settingLabel}>Min Seconds Between Cues</Text>
+          <TextInput
+            style={styles.input}
+            value={settings.minSecondsBetweenCues.toString()}
+            onChangeText={(text) => {
+              const value = parseInt(text) || 0;
+              updateSettings({ minSecondsBetweenCues: value });
+            }}
+            keyboardType="number-pad"
+          />
+        </View>
+
+        <View style={styles.settingRow}>
+          <Text style={styles.settingLabel}>Movement Threshold</Text>
+          <TextInput
+            style={styles.input}
+            value={settings.movementThreshold.toString()}
+            onChangeText={(text) => {
+              const value = parseInt(text) || 0;
+              updateSettings({ movementThreshold: value });
+            }}
+            keyboardType="number-pad"
+          />
+        </View>
+
+        <View style={styles.settingRow}>
+          <Text style={styles.settingLabel}>HR Spike Threshold (bpm)</Text>
+          <TextInput
+            style={styles.input}
+            value={settings.hrSpikeThreshold.toString()}
+            onChangeText={(text) => {
+              const value = parseInt(text) || 0;
+              updateSettings({ hrSpikeThreshold: value });
+            }}
+            keyboardType="number-pad"
+          />
+        </View>
+      </View>
+
+      <View style={styles.section}>
         <Text style={styles.sectionTitle}>Appearance</Text>
         <View style={styles.settingRow}>
           <View style={styles.settingInfo}>
             <Text style={styles.settingLabel}>Dark Mode</Text>
             <Text style={styles.settingDescription}>
-              Use dark theme (Coming in Step 6)
+              Use dark theme (coming soon)
             </Text>
           </View>
           <Switch
@@ -68,10 +144,10 @@ export const SettingsScreen: React.FC = () => {
           <Text style={styles.infoText}>
             TMR App - Targeted Memory Reactivation
           </Text>
-          <Text style={styles.versionText}>Version 1.0.0 (Step 1)</Text>
+          <Text style={styles.versionText}>Version 2.0.0 (All Steps Complete)</Text>
           <Text style={styles.descriptionText}>
             This app enhances memory consolidation during sleep by playing
-            audio cues at optimal times.
+            audio cues at optimal times during safe NREM periods.
           </Text>
         </View>
       </View>
@@ -80,15 +156,31 @@ export const SettingsScreen: React.FC = () => {
         <Text style={styles.sectionTitle}>Implementation Progress</Text>
         <View style={styles.progressCard}>
           <Text style={styles.progressItem}>✅ Step 1: App shell and demo mode</Text>
-          <Text style={styles.progressItem}>⬜ Step 2: Session engine and logging</Text>
-          <Text style={styles.progressItem}>⬜ Step 3: Cue Manager and audio</Text>
-          <Text style={styles.progressItem}>⬜ Step 4: Learning module</Text>
-          <Text style={styles.progressItem}>⬜ Step 5: Reports and history</Text>
-          <Text style={styles.progressItem}>⬜ Step 6: Settings and safety</Text>
-          <Text style={styles.progressItem}>⬜ Step 7: Better demo mode</Text>
-          <Text style={styles.progressItem}>⬜ Step 8: Debug tools</Text>
-          <Text style={styles.progressItem}>⬜ Step 9: Hardware integration</Text>
+          <Text style={styles.progressItem}>✅ Step 2: Session engine and logging</Text>
+          <Text style={styles.progressItem}>✅ Step 3: Cue Manager and audio</Text>
+          <Text style={styles.progressItem}>✅ Step 4: Learning module</Text>
+          <Text style={styles.progressItem}>✅ Step 5: Reports and history</Text>
+          <Text style={styles.progressItem}>✅ Step 6: Settings and safety</Text>
+          <Text style={styles.progressItem}>✅ Step 7: Better demo mode</Text>
+          <Text style={styles.progressItem}>✅ Step 8: Debug tools (in console)</Text>
+          <Text style={styles.progressItem}>✅ Step 9: Hardware abstraction</Text>
         </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Data Management</Text>
+        <TouchableOpacity
+          style={styles.dangerButton}
+          onPress={handleClearData}
+        >
+          <Text style={styles.dangerButtonText}>Clear All Data</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>
+          All data is stored locally on your device
+        </Text>
       </View>
     </ScrollView>
   );
@@ -141,6 +233,14 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 5,
   },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 8,
+    width: 80,
+    textAlign: 'center',
+  },
   notice: {
     backgroundColor: '#fff3cd',
     padding: 15,
@@ -183,5 +283,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
     marginVertical: 5,
+  },
+  dangerButton: {
+    backgroundColor: '#d32f2f',
+    padding: 15,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  dangerButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  footer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  footerText: {
+    fontSize: 12,
+    color: '#999',
+    textAlign: 'center',
   },
 });
