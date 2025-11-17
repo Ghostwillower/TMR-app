@@ -13,7 +13,7 @@ import { useApp } from '../contexts/AppContext';
 import { learningModule, LearningItem } from '../services/LearningModule';
 
 export const LearningScreen: React.FC = () => {
-  const { learningItems, refreshLearning, cues } = useApp();
+  const { learningItems, refreshLearning, cues, currentSession } = useApp();
   const [showAddModal, setShowAddModal] = useState(false);
   const [frontText, setFrontText] = useState('');
   const [backText, setBackText] = useState('');
@@ -21,6 +21,11 @@ export const LearningScreen: React.FC = () => {
   const [showFlashcard, setShowFlashcard] = useState(false);
   const [currentItem, setCurrentItem] = useState<LearningItem | null>(null);
   const [showAnswer, setShowAnswer] = useState(false);
+  
+  // Test mode state
+  const [testMode, setTestMode] = useState<'pre-sleep' | 'post-sleep' | null>(null);
+  const [currentTestIndex, setCurrentTestIndex] = useState(0);
+  const [testPerformances, setTestPerformances] = useState<{ itemId: string; correct: boolean }[]>([]);
 
   useEffect(() => {
     refreshLearning();
@@ -69,6 +74,54 @@ export const LearningScreen: React.FC = () => {
     setShowFlashcard(true);
   };
 
+  const startTest = (type: 'pre-sleep' | 'post-sleep') => {
+    if (learningItems.length === 0) {
+      Alert.alert('Error', 'Add learning items first');
+      return;
+    }
+    setTestMode(type);
+    setCurrentTestIndex(0);
+    setTestPerformances([]);
+    setCurrentItem(learningItems[0]);
+    setShowAnswer(false);
+    setShowFlashcard(true);
+  };
+
+  const handleTestAnswer = async (correct: boolean) => {
+    if (!currentItem || !testMode) return;
+
+    const newPerformances = [...testPerformances, { itemId: currentItem.id, correct }];
+    setTestPerformances(newPerformances);
+
+    if (currentTestIndex < learningItems.length - 1) {
+      // Next item
+      const nextIndex = currentTestIndex + 1;
+      setCurrentTestIndex(nextIndex);
+      setCurrentItem(learningItems[nextIndex]);
+      setShowAnswer(false);
+    } else {
+      // Test complete
+      await learningModule.startTest(testMode, currentSession?.id);
+      
+      // Record all performances
+      const testId = `test_${Date.now()}`;
+      for (const perf of newPerformances) {
+        await learningModule.recordPerformance(testId, perf.itemId, perf.correct);
+      }
+
+      const accuracy = (newPerformances.filter(p => p.correct).length / newPerformances.length) * 100;
+      Alert.alert(
+        `${testMode === 'pre-sleep' ? 'Pre' : 'Post'}-Sleep Test Complete`,
+        `Accuracy: ${accuracy.toFixed(1)}%\n\n${testMode === 'pre-sleep' ? 'Good luck with your sleep session!' : 'Check your memory boost in Reports!'}`,
+        [{ text: 'OK', onPress: () => {
+          setShowFlashcard(false);
+          setTestMode(null);
+          setTestPerformances([]);
+        }}]
+      );
+    }
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -83,6 +136,24 @@ export const LearningScreen: React.FC = () => {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Flashcards ({learningItems.length})</Text>
+        
+        {learningItems.length > 0 && (
+          <View style={styles.testButtons}>
+            <TouchableOpacity
+              style={styles.testButton}
+              onPress={() => startTest('pre-sleep')}
+            >
+              <Text style={styles.testButtonText}>📝 Pre-Sleep Test</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.testButton, styles.postTestButton]}
+              onPress={() => startTest('post-sleep')}
+            >
+              <Text style={styles.testButtonText}>✅ Post-Sleep Test</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        
         {learningItems.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyIcon}>📚</Text>
@@ -192,6 +263,17 @@ export const LearningScreen: React.FC = () => {
       <Modal visible={showFlashcard} transparent animationType="fade">
         <View style={styles.flashcardContainer}>
           <View style={styles.flashcardContent}>
+            {testMode && (
+              <View style={styles.testModeHeader}>
+                <Text style={styles.testModeTitle}>
+                  {testMode === 'pre-sleep' ? 'Pre-Sleep Test' : 'Post-Sleep Test'}
+                </Text>
+                <Text style={styles.testProgress}>
+                  {currentTestIndex + 1} / {learningItems.length}
+                </Text>
+              </View>
+            )}
+            
             <Text style={styles.flashcardLabel}>
               {showAnswer ? 'Answer' : 'Question'}
             </Text>
@@ -210,25 +292,27 @@ export const LearningScreen: React.FC = () => {
               <View style={styles.flashcardActions}>
                 <TouchableOpacity
                   style={[styles.flashcardButton, styles.incorrectButton]}
-                  onPress={() => setShowFlashcard(false)}
+                  onPress={() => testMode ? handleTestAnswer(false) : setShowFlashcard(false)}
                 >
                   <Text style={styles.flashcardButtonText}>❌ Incorrect</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.flashcardButton, styles.correctButton]}
-                  onPress={() => setShowFlashcard(false)}
+                  onPress={() => testMode ? handleTestAnswer(true) : setShowFlashcard(false)}
                 >
                   <Text style={styles.flashcardButtonText}>✓ Correct</Text>
                 </TouchableOpacity>
               </View>
             )}
             
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => setShowFlashcard(false)}
-            >
-              <Text style={styles.closeButtonText}>Close</Text>
-            </TouchableOpacity>
+            {!testMode && (
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setShowFlashcard(false)}
+              >
+                <Text style={styles.closeButtonText}>Close</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </Modal>
@@ -346,6 +430,42 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
+  },
+  testButtons: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 15,
+  },
+  testButton: {
+    flex: 1,
+    backgroundColor: '#2196f3',
+    paddingVertical: 12,
+    paddingHorizontal: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  postTestButton: {
+    backgroundColor: '#4caf50',
+  },
+  testButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  testModeHeader: {
+    width: '100%',
+    marginBottom: 20,
+    alignItems: 'center',
+  },
+  testModeTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#6200ee',
+    marginBottom: 5,
+  },
+  testProgress: {
+    fontSize: 14,
+    color: '#666',
   },
   modalContainer: {
     flex: 1,

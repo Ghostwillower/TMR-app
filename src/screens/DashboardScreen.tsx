@@ -1,9 +1,23 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useApp } from '../contexts/AppContext';
+import { sessionEngine } from '../services/SessionEngine';
 
 export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const { demoMode, currentSession, currentBiometrics } = useApp();
+  const { demoMode, currentSession, currentBiometrics, cues, learningItems } = useApp();
+  const [totalSessions, setTotalSessions] = useState(0);
+  const [totalCuesPlayed, setTotalCuesPlayed] = useState(0);
+
+  useEffect(() => {
+    loadStats();
+  }, []);
+
+  const loadStats = async () => {
+    const sessions = await sessionEngine.getAllSessions();
+    setTotalSessions(sessions.length);
+    const totalCues = sessions.reduce((sum, session) => sum + session.cuesPlayed.length, 0);
+    setTotalCuesPlayed(totalCues);
+  };
 
   return (
     <ScrollView style={styles.container}>
@@ -48,6 +62,32 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             {currentSession ? 'View Session' : 'Start Session'}
           </Text>
         </TouchableOpacity>
+      </View>
+
+      <View style={styles.statsGrid}>
+        <View style={styles.statCard}>
+          <Text style={styles.statIcon}>📊</Text>
+          <Text style={styles.statValue}>{totalSessions}</Text>
+          <Text style={styles.statLabel}>Total Sessions</Text>
+        </View>
+
+        <View style={styles.statCard}>
+          <Text style={styles.statIcon}>🎵</Text>
+          <Text style={styles.statValue}>{cues.length}</Text>
+          <Text style={styles.statLabel}>Cues</Text>
+        </View>
+
+        <View style={styles.statCard}>
+          <Text style={styles.statIcon}>📚</Text>
+          <Text style={styles.statValue}>{learningItems.length}</Text>
+          <Text style={styles.statLabel}>Flashcards</Text>
+        </View>
+
+        <View style={styles.statCard}>
+          <Text style={styles.statIcon}>✨</Text>
+          <Text style={styles.statValue}>{totalCuesPlayed}</Text>
+          <Text style={styles.statLabel}>Cues Played</Text>
+        </View>
       </View>
 
       <View style={styles.quickActionsCard}>
@@ -162,6 +202,37 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginHorizontal: 15,
+    marginBottom: 15,
+  },
+  statCard: {
+    width: '48%',
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginBottom: 10,
+    elevation: 3,
+  },
+  statIcon: {
+    fontSize: 36,
+    marginBottom: 10,
+  },
+  statValue: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#6200ee',
+    marginBottom: 5,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
   },
   quickActionsCard: {
     backgroundColor: '#fff',

@@ -16,9 +16,11 @@ export const CuesScreen: React.FC = () => {
   const { cues, cueSets, refreshCues } = useApp();
   const [showAddModal, setShowAddModal] = useState(false);
   const [showSetModal, setShowSetModal] = useState(false);
+  const [showRenameModal, setShowRenameModal] = useState(false);
   const [newCueName, setNewCueName] = useState('');
   const [newSetName, setNewSetName] = useState('');
   const [selectedCues, setSelectedCues] = useState<string[]>([]);
+  const [renamingCue, setRenamingCue] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     refreshCues();
@@ -113,6 +115,30 @@ export const CuesScreen: React.FC = () => {
     );
   };
 
+  const handleRenameCue = (cue: { id: string; name: string }) => {
+    setRenamingCue(cue);
+    setNewCueName(cue.name);
+    setShowRenameModal(true);
+  };
+
+  const saveRename = async () => {
+    if (!renamingCue || !newCueName.trim()) {
+      Alert.alert('Error', 'Please enter a name');
+      return;
+    }
+
+    try {
+      await cueManager.renameCue(renamingCue.id, newCueName.trim());
+      await refreshCues();
+      setShowRenameModal(false);
+      setRenamingCue(null);
+      setNewCueName('');
+      Alert.alert('Success', 'Cue renamed successfully!');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to rename cue');
+    }
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -185,6 +211,12 @@ export const CuesScreen: React.FC = () => {
                     onPress={() => handleTestCue(item.id)}
                   >
                     <Text style={styles.actionButtonText}>▶️</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => handleRenameCue({ id: item.id, name: item.name })}
+                  >
+                    <Text style={styles.actionButtonText}>✏️</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.actionButton}
@@ -282,6 +314,40 @@ export const CuesScreen: React.FC = () => {
                 onPress={handleCreateSet}
               >
                 <Text style={styles.modalButtonText}>Create</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Rename Cue Modal */}
+      <Modal visible={showRenameModal} transparent animationType="slide">
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Rename Cue</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="New cue name"
+              value={newCueName}
+              onChangeText={setNewCueName}
+              autoFocus
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalButton}
+                onPress={() => {
+                  setShowRenameModal(false);
+                  setRenamingCue(null);
+                  setNewCueName('');
+                }}
+              >
+                <Text style={styles.modalButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonPrimary]}
+                onPress={saveRename}
+              >
+                <Text style={styles.modalButtonText}>Save</Text>
               </TouchableOpacity>
             </View>
           </View>

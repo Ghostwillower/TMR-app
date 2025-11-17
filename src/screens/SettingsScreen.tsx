@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -8,11 +8,16 @@ import {
   Switch,
   TextInput,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
+import { sessionEngine } from '../services/SessionEngine';
+import { cueManager } from '../services/CueManager';
+import { BiometricData } from '../utils/DemoBiometricSimulator';
 
 export const SettingsScreen: React.FC = () => {
   const { demoMode, settings, toggleDemoMode, toggleDarkMode, updateSettings, clearAllData } = useApp();
+  const [runningDemo, setRunningDemo] = useState(false);
 
   const handleClearData = () => {
     Alert.alert(
@@ -30,6 +35,84 @@ export const SettingsScreen: React.FC = () => {
         },
       ]
     );
+  };
+
+  const runFastForwardDemo = async () => {
+    if (!demoMode) {
+      Alert.alert('Error', 'Fast-forward demo only works in Demo Mode');
+      return;
+    }
+
+    setRunningDemo(true);
+
+    try {
+      // Create a few cues if none exist
+      const allCues = cueManager.getAllCues();
+      if (allCues.length === 0) {
+        await cueManager.addCue('Chime 1', 'demo://chime1.mp3');
+        await cueManager.addCue('Chime 2', 'demo://chime2.mp3');
+        await cueManager.addCue('Chime 3', 'demo://chime3.mp3');
+        const cueIds = cueManager.getAllCues().map(c => c.id);
+        await cueManager.createCueSet('Demo Set', cueIds);
+        await cueManager.setActiveCueSet(cueManager.getAllCueSets()[0].id);
+      }
+
+      // Start a session
+      const session = sessionEngine.startSession('Fast-forward demo session');
+
+      // Simulate 8 hours of sleep in compressed time
+      const stages = ['Awake', 'Light', 'Deep', 'Light', 'REM', 'Light', 'Deep', 'REM'];
+      const totalMinutes = 8 * 60; // 8 hours
+      const timePerStage = (totalMinutes * 60 * 1000) / stages.length; // ms per stage
+
+      let currentTime = session.startTime;
+
+      for (let i = 0; i < stages.length; i++) {
+        const stage = stages[i];
+        
+        // Generate biometric data for this stage
+        for (let j = 0; j < 20; j++) { // 20 readings per stage
+          const biometricData: BiometricData = {
+            timestamp: currentTime,
+            heartRate: stage === 'Deep' ? 55 + Math.random() * 5 : 
+                      stage === 'Light' ? 65 + Math.random() * 5 :
+                      stage === 'REM' ? 70 + Math.random() * 5 : 75 + Math.random() * 5,
+            movement: stage === 'Deep' ? 5 + Math.random() * 5 :
+                     stage === 'Light' ? 20 + Math.random() * 10 :
+                     stage === 'REM' ? 30 + Math.random() * 10 : 50 + Math.random() * 10,
+            temperature: 36.5 + Math.random() * 0.5,
+            sleepStage: stage,
+          };
+
+          sessionEngine.logBiometrics(biometricData);
+
+          // Possibly play a cue
+          if (sessionEngine.isCueAllowed(biometricData) && Math.random() < 0.15) {
+            const enabledCues = cueManager.getEnabledCuesFromActiveSet();
+            if (enabledCues.length > 0) {
+              const randomCue = enabledCues[Math.floor(Math.random() * enabledCues.length)];
+              sessionEngine.playCue(randomCue.id, randomCue.name, stage);
+            }
+          }
+
+          currentTime += timePerStage / 20;
+        }
+      }
+
+      // End the session
+      await sessionEngine.endSession();
+
+      setRunningDemo(false);
+
+      Alert.alert(
+        'Demo Complete! 🎉',
+        'A full 8-hour sleep session has been simulated. Check the Reports screen to see the results!',
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      setRunningDemo(false);
+      Alert.alert('Error', 'Failed to run demo: ' + error);
+    }
   };
 
   return (
@@ -60,6 +143,21 @@ export const SettingsScreen: React.FC = () => {
               ⚠️ Real Mode not yet implemented. BLE connectivity coming in Step 9.
             </Text>
           </View>
+        )}
+        {demoMode && (
+          <TouchableOpacity
+            style={styles.demoButton}
+            onPress={runFastForwardDemo}
+            disabled={runningDemo}
+          >
+            {runningDemo ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.demoButtonText}>
+                ⚡ Run 5-Minute Demo Night
+              </Text>
+            )}
+          </TouchableOpacity>
         )}
       </View>
 
@@ -250,6 +348,18 @@ const styles = StyleSheet.create({
   noticeText: {
     fontSize: 14,
     color: '#856404',
+  },
+  demoButton: {
+    backgroundColor: '#2196f3',
+    padding: 15,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  demoButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   infoCard: {
     backgroundColor: '#fff',

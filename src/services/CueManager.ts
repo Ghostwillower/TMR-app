@@ -79,6 +79,14 @@ export class CueManager {
     }
   }
 
+  async renameCue(id: string, newName: string): Promise<void> {
+    const cue = this.cues.find(c => c.id === id);
+    if (cue) {
+      cue.name = newName;
+      await this.saveCues();
+    }
+  }
+
   async playCue(id: string, volume: number = 0.3): Promise<void> {
     const cue = this.cues.find(c => c.id === id);
     if (!cue) {
