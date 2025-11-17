@@ -19,6 +19,8 @@
       }
     },
     "android": {
+      "package": "com.ghostwillower.tmrapp",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"

@@ -126,9 +126,10 @@ The session engine depends only on these interfaces, making it trivial to swap i
 ### Prerequisites
 - Node.js 18+ and npm
 - Expo CLI: `npm install -g expo-cli`
+- For APK builds: EAS CLI `npm install -g eas-cli`
 - iOS Simulator or Android Emulator (or physical device with Expo Go)
 
-### Installation
+### Development
 
 1. Install dependencies:
 ```bash
@@ -149,6 +150,32 @@ npm run ios
 ```bash
 npm run android
 ```
+
+### Building APK for Android
+
+**Quick Build** (using helper script):
+```bash
+./build-apk.sh
+```
+
+**Manual Build** (using EAS):
+```bash
+# Install EAS CLI
+npm install -g eas-cli
+
+# Login to Expo
+eas login
+
+# Build APK for testing
+npm run build:android:apk
+# or
+eas build --platform android --profile preview
+
+# Build for production (Google Play)
+npm run build:android:production
+```
+
+📱 **See [BUILD_APK.md](./BUILD_APK.md) for complete build instructions, troubleshooting, and deployment guide.**
 
 ## Usage Guide
 
