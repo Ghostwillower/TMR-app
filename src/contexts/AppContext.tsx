@@ -7,6 +7,8 @@ import { cueManager, AudioCue, CueSet } from '../services/CueManager';
 import { learningModule, LearningItem, MemoryTest } from '../services/LearningModule';
 import { BiometricSource, DemoBiometricSource, RealBiometricSource } from '../services/BiometricSource';
 import { CueOutput, PhoneSpeakerOutput, HubOutput } from '../services/CueOutput';
+import { backupService } from '../services/BackupService';
+import type { BackupStrategy } from '../services/BackupService';
 
 export interface AppSettings {
   demoMode: boolean;
@@ -43,7 +45,11 @@ interface AppContextType {
   toggleDemoMode: () => void;
   toggleDarkMode: () => void;
   updateSettings: (settings: Partial<AppSettings>) => void;
-  
+
+  // Backup & Restore
+  exportBackup: (passphrase: string) => Promise<string>;
+  importBackup: (fileUri: string, passphrase: string, strategy: BackupStrategy) => Promise<void>;
+
   // Utility
   clearAllData: () => Promise<void>;
 }
@@ -256,11 +262,42 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setSettings({ ...settings, ...newSettings });
   };
 
+  const applySettingsFromBackup = (incoming: AppSettings | undefined) => {
+    const merged = { ...DEFAULT_SETTINGS, ...incoming } as AppSettings;
+    setSettings(merged);
+    setDemoMode(merged.demoMode);
+  };
+
+  const exportBackup = async (passphrase: string): Promise<string> => {
+    return backupService.exportEncryptedBackup(passphrase);
+  };
+
+  const importBackup = async (
+    fileUri: string,
+    passphrase: string,
+    strategy: BackupStrategy = 'merge'
+  ): Promise<void> => {
+    const data = await backupService.importFromFile(fileUri, passphrase, strategy);
+    applySettingsFromBackup(data.settings);
+    await cueManager.initialize();
+    await learningModule.initialize();
+    await refreshCues();
+    await refreshLearning();
+  };
+
   const clearAllData = async () => {
     await learningModule.clearAllData();
     // Clear sessions and cues from AsyncStorage
     const AsyncStorage = await import('@react-native-async-storage/async-storage');
-    await AsyncStorage.default.multiRemove(['tmr_sessions', 'tmr_cues', 'tmr_cue_sets', 'tmr_learning_items', 'tmr_memory_tests']);
+    await AsyncStorage.default.multiRemove([
+      'tmr_sessions',
+      'tmr_cues',
+      'tmr_cue_sets',
+      'tmr_learning_items',
+      'tmr_memory_tests',
+      'tmr_settings',
+    ]);
+    applySettingsFromBackup(DEFAULT_SETTINGS);
     await refreshCues();
     await refreshLearning();
   };
@@ -282,6 +319,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     toggleDemoMode,
     toggleDarkMode,
     updateSettings,
+    exportBackup,
+    importBackup,
     clearAllData,
   };
 

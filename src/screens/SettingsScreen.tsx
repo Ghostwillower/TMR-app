@@ -9,15 +9,33 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  Modal,
+  Platform,
+  ToastAndroid,
 } from 'react-native';
+import * as DocumentPicker from 'expo-document-picker';
 import { useApp } from '../contexts/AppContext';
 import { sessionEngine } from '../services/SessionEngine';
 import { cueManager } from '../services/CueManager';
 import { BiometricData } from '../utils/DemoBiometricSimulator';
 
 export const SettingsScreen: React.FC = () => {
-  const { demoMode, settings, toggleDemoMode, toggleDarkMode, updateSettings, clearAllData } = useApp();
+  const { demoMode, settings, toggleDemoMode, toggleDarkMode, updateSettings, clearAllData, exportBackup, importBackup } = useApp();
   const [runningDemo, setRunningDemo] = useState(false);
+  const [processingBackup, setProcessingBackup] = useState(false);
+  const [passphrase, setPassphrase] = useState('');
+  const [passphraseAction, setPassphraseAction] = useState<'export' | 'import' | null>(null);
+  const [passphraseModalVisible, setPassphraseModalVisible] = useState(false);
+  const [selectedBackupUri, setSelectedBackupUri] = useState<string | null>(null);
+  const [mergeImport, setMergeImport] = useState(true);
+
+  const showToast = (message: string) => {
+    if (Platform.OS === 'android') {
+      ToastAndroid.show(message, ToastAndroid.SHORT);
+    } else {
+      Alert.alert(message);
+    }
+  };
 
   const handleModeChange = (value: boolean) => {
     if (!value) {
@@ -49,6 +67,55 @@ export const SettingsScreen: React.FC = () => {
         },
       ]
     );
+  };
+
+  const requestExportBackup = () => {
+    setPassphraseAction('export');
+    setPassphraseModalVisible(true);
+  };
+
+  const requestImportBackup = async () => {
+    const result = await DocumentPicker.getDocumentAsync({ type: 'application/json', copyToCacheDirectory: true });
+    if (result.canceled) {
+      return;
+    }
+
+    const uri = result.assets?.[0]?.uri;
+    if (!uri) {
+      Alert.alert('Error', 'Unable to read the selected backup file.');
+      return;
+    }
+
+    setSelectedBackupUri(uri);
+    setPassphraseAction('import');
+    setPassphraseModalVisible(true);
+  };
+
+  const handlePassphraseSubmit = async () => {
+    if (!passphrase) {
+      Alert.alert('Passphrase Required', 'Please enter a passphrase to continue.');
+      return;
+    }
+
+    setPassphraseModalVisible(false);
+    setProcessingBackup(true);
+
+    try {
+      if (passphraseAction === 'export') {
+        await exportBackup(passphrase);
+        showToast('Backup exported securely');
+      } else if (passphraseAction === 'import' && selectedBackupUri) {
+        await importBackup(selectedBackupUri, passphrase, mergeImport ? 'merge' : 'replace');
+        showToast('Backup imported successfully');
+      }
+    } catch (error) {
+      Alert.alert('Backup Error', error instanceof Error ? error.message : 'Unable to process backup file.');
+    } finally {
+      setProcessingBackup(false);
+      setPassphrase('');
+      setPassphraseAction(null);
+      setSelectedBackupUri(null);
+    }
   };
 
   const runFastForwardDemo = async () => {
@@ -131,10 +198,11 @@ export const SettingsScreen: React.FC = () => {
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Settings</Text>
-      </View>
+    <>
+      <ScrollView style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Settings</Text>
+        </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Mode</Text>
@@ -282,6 +350,37 @@ export const SettingsScreen: React.FC = () => {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Data Management</Text>
+        <View style={styles.settingRow}>
+          <View style={styles.settingInfo}>
+            <Text style={styles.settingLabel}>Merge imports with existing data</Text>
+            <Text style={styles.settingDescription}>
+              Keep current sessions, cues, and learning items while adding backup content.
+            </Text>
+          </View>
+          <Switch value={mergeImport} onValueChange={setMergeImport} />
+        </View>
+        <TouchableOpacity
+          style={styles.primaryButton}
+          onPress={requestExportBackup}
+          disabled={processingBackup}
+        >
+          {processingBackup && passphraseAction === 'export' ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.primaryButtonText}>Export Backup</Text>
+          )}
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.secondaryButton}
+          onPress={requestImportBackup}
+          disabled={processingBackup}
+        >
+          {processingBackup && passphraseAction === 'import' ? (
+            <ActivityIndicator color="#6200ee" />
+          ) : (
+            <Text style={styles.secondaryButtonText}>Import Backup</Text>
+          )}
+        </TouchableOpacity>
         <TouchableOpacity
           style={styles.dangerButton}
           onPress={handleClearData}
@@ -290,12 +389,53 @@ export const SettingsScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>
-          All data is stored locally on your device
-        </Text>
-      </View>
-    </ScrollView>
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>
+            All data is stored locally on your device
+          </Text>
+        </View>
+      </ScrollView>
+
+      <Modal
+        visible={passphraseModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setPassphraseModalVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>
+              {passphraseAction === 'import' ? 'Import Backup' : 'Export Backup'}
+            </Text>
+            <Text style={styles.modalDescription}>
+              Enter the passphrase to {passphraseAction === 'import' ? 'decrypt' : 'encrypt'} your backup file.
+            </Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Passphrase"
+              secureTextEntry
+              value={passphrase}
+              onChangeText={setPassphrase}
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.secondaryButton, styles.modalActionButton]}
+                onPress={() => {
+                  setPassphrase('');
+                  setPassphraseModalVisible(false);
+                  setPassphraseAction(null);
+                }}
+              >
+                <Text style={styles.secondaryButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.primaryButton, styles.modalActionButton]} onPress={handlePassphraseSubmit}>
+                <Text style={styles.primaryButtonText}>Confirm</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 };
 
@@ -409,6 +549,30 @@ const styles = StyleSheet.create({
     color: '#333',
     marginVertical: 5,
   },
+  primaryButton: {
+    backgroundColor: '#6200ee',
+    padding: 15,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  primaryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  secondaryButton: {
+    backgroundColor: '#e8e8ff',
+    padding: 15,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  secondaryButtonText: {
+    color: '#6200ee',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   dangerButton: {
     backgroundColor: '#d32f2f',
     padding: 15,
@@ -428,5 +592,44 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#999',
     textAlign: 'center',
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 20,
+    width: '100%',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    color: '#333',
+  },
+  modalDescription: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 15,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 15,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  modalActionButton: {
+    flex: 1,
+    marginHorizontal: 5,
   },
 });
