@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { Alert } from 'react-native';
 import { BiometricData } from '../utils/DemoBiometricSimulator';
 import { SessionLog, sessionEngine } from '../services/SessionEngine';
 import { cueManager, AudioCue, CueSet } from '../services/CueManager';
@@ -98,6 +99,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const startSession = async (notes?: string) => {
+    if (!demoMode) {
+      Alert.alert(
+        'Real Mode Unavailable',
+        'Hardware streaming is not available yet. Please stay in Demo Mode until a real transport is connected.'
+      );
+      return;
+    }
+
     const session = sessionEngine.startSession(notes);
     setCurrentSession(session);
 
@@ -174,10 +183,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const toggleDemoMode = () => {
+    // Prevent switching into Real Mode until a true hardware transport exists
+    if (demoMode) {
+      Alert.alert(
+        'Real Mode Not Implemented',
+        'Connect to a supported biometric transport to leave Demo Mode. Until then, the app will remain in Demo Mode for safety.'
+      );
+      return;
+    }
+
     const newMode = !demoMode;
     setDemoMode(newMode);
     setSettings({ ...settings, demoMode: newMode });
-    
+
     // Reinitialize biometric source and cue output
     if (newMode) {
       biometricSourceRef.current = new DemoBiometricSource();
