@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BiometricData } from '../utils/DemoBiometricSimulator';
 import { SessionLog, sessionEngine } from '../services/SessionEngine';
 import { cueManager, AudioCue, CueSet } from '../services/CueManager';
-import { learningModule, LearningItem, MemoryTest } from '../services/LearningModule';
+import { learningModule, LearningItem } from '../services/LearningModule';
 import { BiometricSource, BiometricStatus, DemoBiometricSource, RealBiometricSource } from '../services/BiometricSource';
 import { CueOutput, PhoneSpeakerOutput, HubOutput, HubStatus } from '../services/CueOutput';
 

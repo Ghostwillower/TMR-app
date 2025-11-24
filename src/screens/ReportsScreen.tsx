@@ -179,24 +179,24 @@ export const ReportsScreen: React.FC = () => {
     );
   };
 
-  if (selectedSession) {
-    const stageSeries = useMemo(
-      () => buildTimeSeries(selectedSession.biometricLogs, selectedSession.cuesPlayed, 'sleepStage'),
-      [selectedSession.biometricLogs, selectedSession.cuesPlayed],
-    );
-    const heartRateSeries = useMemo(
-      () => buildTimeSeries(selectedSession.biometricLogs, selectedSession.cuesPlayed, 'heartRate'),
-      [selectedSession.biometricLogs, selectedSession.cuesPlayed],
-    );
-    const movementSeries = useMemo(
-      () => buildTimeSeries(selectedSession.biometricLogs, selectedSession.cuesPlayed, 'movement'),
-      [selectedSession.biometricLogs, selectedSession.cuesPlayed],
-    );
-    const temperatureSeries = useMemo(
-      () => buildTimeSeries(selectedSession.biometricLogs, selectedSession.cuesPlayed, 'temperature'),
-      [selectedSession.biometricLogs, selectedSession.cuesPlayed],
-    );
+  const stageSeries = useMemo(
+    () => selectedSession ? buildTimeSeries(selectedSession.biometricLogs, selectedSession.cuesPlayed, 'sleepStage') : { labels: [], data: [], timestamps: [], cueIndexMap: {} },
+    [selectedSession],
+  );
+  const heartRateSeries = useMemo(
+    () => selectedSession ? buildTimeSeries(selectedSession.biometricLogs, selectedSession.cuesPlayed, 'heartRate') : { labels: [], data: [], timestamps: [], cueIndexMap: {} },
+    [selectedSession],
+  );
+  const movementSeries = useMemo(
+    () => selectedSession ? buildTimeSeries(selectedSession.biometricLogs, selectedSession.cuesPlayed, 'movement') : { labels: [], data: [], timestamps: [], cueIndexMap: {} },
+    [selectedSession],
+  );
+  const temperatureSeries = useMemo(
+    () => selectedSession ? buildTimeSeries(selectedSession.biometricLogs, selectedSession.cuesPlayed, 'temperature') : { labels: [], data: [], timestamps: [], cueIndexMap: {} },
+    [selectedSession],
+  );
 
+  if (selectedSession) {
     return (
       <ScrollView style={styles.container}>
         <View style={styles.header}>

@@ -5,10 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Dimensions,
 } from 'react-native';
-
-const { width } = Dimensions.get('window');
 
 interface OnboardingScreenProps {
   onComplete: () => void;
