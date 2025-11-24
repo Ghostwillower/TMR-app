@@ -40,10 +40,10 @@ export class SessionEngine {
   private hrSpikeThreshold: number = 20;
   private lastHR: number = 70;
 
-  startSession(notes?: string): SessionLog {
+  startSession(notes?: string, startTime: number = Date.now()): SessionLog {
     this.currentSession = {
-      id: `session_${Date.now()}`,
-      startTime: Date.now(),
+      id: `session_${startTime}`,
+      startTime,
       status: 'active',
       notes,
       biometricLogs: [],
@@ -57,38 +57,40 @@ export class SessionEngine {
       cuesPlayed: [],
     };
 
-    this.stageStartTime = Date.now();
+    this.stageStartTime = startTime;
     this.currentStage = 'Awake';
     this.lastCueTime = 0;
 
     return this.currentSession;
   }
 
-  logBiometrics(data: BiometricData): void {
+  logBiometrics(data: BiometricData, timestampOverride?: number): void {
     if (!this.currentSession || this.currentSession.status !== 'active') return;
+
+    const now = timestampOverride ?? data.timestamp ?? Date.now();
 
     // Add to biometric logs
     this.currentSession.biometricLogs.push(data);
 
     // Update stage timings if stage changed
     if (data.sleepStage !== this.currentStage) {
-      const elapsed = Date.now() - this.stageStartTime;
+      const elapsed = now - this.stageStartTime;
       if (this.currentStage in this.currentSession.stageTimings) {
         this.currentSession.stageTimings[this.currentStage as keyof typeof this.currentSession.stageTimings] += elapsed;
       }
       this.currentStage = data.sleepStage;
-      this.stageStartTime = Date.now();
+      this.stageStartTime = now;
     }
 
     // Check if cue is allowed
-    if (this.isCueAllowed(data)) {
+    if (this.isCueAllowed(data, now)) {
       this.currentSession.cueAllowedCount++;
     }
 
     this.lastHR = data.heartRate;
   }
 
-  isCueAllowed(data: BiometricData): boolean {
+  isCueAllowed(data: BiometricData, currentTime: number = Date.now()): boolean {
     if (!this.currentSession) return false;
 
     // Rule 1: Stage must be Light or Deep
@@ -108,7 +110,7 @@ export class SessionEngine {
     }
 
     // Rule 4: Cooldown period
-    const timeSinceLastCue = (Date.now() - this.lastCueTime) / 1000;
+    const timeSinceLastCue = (currentTime - this.lastCueTime) / 1000;
     if (this.lastCueTime > 0 && timeSinceLastCue < this.minSecondsBetweenCues) {
       return false;
     }
@@ -121,49 +123,49 @@ export class SessionEngine {
     return true;
   }
 
-  playCue(cueId: string, cueName: string, sleepStage: string): void {
+  playCue(cueId: string, cueName: string, sleepStage: string, timestamp: number = Date.now()): void {
     if (!this.currentSession) return;
 
     const cueEvent: CuePlayEvent = {
-      timestamp: Date.now(),
+      timestamp,
       cueId,
       cueName,
       sleepStage,
     };
 
     this.currentSession.cuesPlayed.push(cueEvent);
-    this.lastCueTime = Date.now();
+    this.lastCueTime = timestamp;
   }
 
-  pauseSession(): void {
+  pauseSession(currentTime: number = Date.now()): void {
     if (this.currentSession) {
       // Update current stage timing
-      const elapsed = Date.now() - this.stageStartTime;
+      const elapsed = currentTime - this.stageStartTime;
       if (this.currentStage in this.currentSession.stageTimings) {
         this.currentSession.stageTimings[this.currentStage as keyof typeof this.currentSession.stageTimings] += elapsed;
       }
-      
+
       this.currentSession.status = 'paused';
     }
   }
 
-  resumeSession(): void {
+  resumeSession(currentTime: number = Date.now()): void {
     if (this.currentSession) {
       this.currentSession.status = 'active';
-      this.stageStartTime = Date.now();
+      this.stageStartTime = currentTime;
     }
   }
 
-  async endSession(): Promise<SessionLog | null> {
+  async endSession(currentTime: number = Date.now()): Promise<SessionLog | null> {
     if (!this.currentSession) return null;
 
     // Update final stage timing
-    const elapsed = Date.now() - this.stageStartTime;
+    const elapsed = currentTime - this.stageStartTime;
     if (this.currentStage in this.currentSession.stageTimings) {
       this.currentSession.stageTimings[this.currentStage as keyof typeof this.currentSession.stageTimings] += elapsed;
     }
 
-    this.currentSession.endTime = Date.now();
+    this.currentSession.endTime = currentTime;
     this.currentSession.status = 'completed';
 
     // Save to storage
