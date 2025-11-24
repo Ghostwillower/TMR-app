@@ -8,11 +8,20 @@ export interface BiometricSource {
   stop(): Promise<void>;
   onData(callback: (data: BiometricData) => void): void;
   isConnected(): boolean;
+  onStatus?(callback: (status: BiometricStatus) => void): void;
+  getStatus?(): BiometricStatus;
+}
+
+export interface BiometricStatus {
+  connected: boolean;
+  deviceName?: string | null;
+  lastError?: string | null;
 }
 
 export class DemoBiometricSource implements BiometricSource {
   private simulator: any = null;
   private callback: ((data: BiometricData) => void) | null = null;
+  private statusCallback: ((status: BiometricStatus) => void) | null = null;
 
   async start(): Promise<void> {
     const { DemoBiometricSimulator } = await import('../utils/DemoBiometricSimulator');
@@ -22,12 +31,14 @@ export class DemoBiometricSource implements BiometricSource {
       }
     });
     this.simulator.start();
+    this.emitStatus();
   }
 
   async stop(): Promise<void> {
     if (this.simulator) {
       this.simulator.stop();
       this.simulator = null;
+      this.emitStatus();
     }
   }
 
@@ -35,8 +46,27 @@ export class DemoBiometricSource implements BiometricSource {
     this.callback = callback;
   }
 
+  onStatus(callback: (status: BiometricStatus) => void): void {
+    this.statusCallback = callback;
+    this.emitStatus();
+  }
+
   isConnected(): boolean {
     return this.simulator !== null;
+  }
+
+  getStatus(): BiometricStatus {
+    return {
+      connected: this.isConnected(),
+      deviceName: 'Demo wristband',
+      lastError: null,
+    };
+  }
+
+  private emitStatus(): void {
+    if (this.statusCallback) {
+      this.statusCallback(this.getStatus());
+    }
   }
 }
 
@@ -49,9 +79,12 @@ export class RealBiometricSource implements BiometricSource {
   private connectionSubscription: Subscription | null = null;
   private selectedDevice: Device | null = null;
   private connectedDevice: Device | null = null;
-  private latestHeartRate: number = 0;
-  private latestMovement: number = 0;
-  private latestTemperature: number = 0;
+  private latestHeartRate: number = 70;
+  private latestMovement: number = 5;
+  private latestTemperature: number = 36.5;
+  private emitTimer: NodeJS.Timeout | null = null;
+  private statusCallback: ((status: BiometricStatus) => void) | null = null;
+  private lastError: string | null = null;
 
   private static HEART_RATE_SERVICE = '0000180d-0000-1000-8000-00805f9b34fb';
   private static HEART_RATE_CHARACTERISTIC = '00002a37-0000-1000-8000-00805f9b34fb';
@@ -73,6 +106,8 @@ export class RealBiometricSource implements BiometricSource {
       if (!device) {
         Alert.alert('No devices found', 'We could not find any nearby wristbands. Please retry.');
         this.connected = false;
+        this.lastError = 'No devices discovered';
+        this.emitStatus();
         return;
       }
       this.selectedDevice = device;
@@ -82,6 +117,8 @@ export class RealBiometricSource implements BiometricSource {
       await this.connectToSelectedDevice();
     } catch (error: any) {
       this.connected = false;
+      this.lastError = error?.message ?? 'Unable to connect';
+      this.emitStatus();
       Alert.alert('Connection failed', error?.message ?? 'Unable to connect to the wristband.');
     }
   }
@@ -105,14 +142,28 @@ export class RealBiometricSource implements BiometricSource {
 
     this.connectedDevice = null;
     this.connected = false;
+    this.emitStatus();
   }
 
   onData(callback: (data: BiometricData) => void): void {
     this.callback = callback;
   }
 
+  onStatus(callback: (status: BiometricStatus) => void): void {
+    this.statusCallback = callback;
+    this.emitStatus();
+  }
+
   isConnected(): boolean {
     return this.connected;
+  }
+
+  getStatus(): BiometricStatus {
+    return {
+      connected: this.connected,
+      deviceName: this.connectedDevice?.name ?? this.selectedDevice?.name,
+      lastError: this.lastError,
+    };
   }
 
   async requestPermissions(): Promise<boolean> {
@@ -204,12 +255,15 @@ export class RealBiometricSource implements BiometricSource {
       const device = await this.manager.connectToDevice(this.selectedDevice.id, { autoConnect: true });
       this.connectedDevice = await device.discoverAllServicesAndCharacteristics();
       this.connected = true;
+      this.lastError = null;
+      this.emitStatus();
 
       this.connectionSubscription = device.onDisconnected(() => {
         this.connected = false;
         this.connectedDevice = null;
         this.connectionSubscription = null;
         this.stopStreaming();
+        this.emitStatus();
         Alert.alert('Wristband disconnected', 'The biometric wristband disconnected. Please reconnect.');
       });
 
@@ -231,6 +285,8 @@ export class RealBiometricSource implements BiometricSource {
           (error, characteristic) => {
             if (error) {
               console.warn('Heart rate monitor error', error);
+              this.lastError = error.message ?? 'Heart rate stream error';
+              this.emitStatus();
               return;
             }
 
@@ -254,6 +310,8 @@ export class RealBiometricSource implements BiometricSource {
           (error, characteristic) => {
             if (error) {
               console.warn('Movement monitor error', error);
+              this.lastError = error.message ?? 'Movement stream error';
+              this.emitStatus();
               return;
             }
 
@@ -277,6 +335,8 @@ export class RealBiometricSource implements BiometricSource {
           (error, characteristic) => {
             if (error) {
               console.warn('Temperature monitor error', error);
+              this.lastError = error.message ?? 'Temperature stream error';
+              this.emitStatus();
               return;
             }
 
@@ -291,11 +351,22 @@ export class RealBiometricSource implements BiometricSource {
     } catch (error) {
       console.warn('Unable to subscribe to temperature', error);
     }
+
+    if (!this.emitTimer) {
+      this.emitTimer = setInterval(() => {
+        // Emit at a steady cadence similar to the demo source
+        this.emitData();
+      }, 2000);
+    }
   }
 
   private stopStreaming(): void {
     this.dataSubscriptions.forEach((subscription) => subscription.remove());
     this.dataSubscriptions = [];
+    if (this.emitTimer) {
+      clearInterval(this.emitTimer);
+      this.emitTimer = null;
+    }
   }
 
   private parseHeartRate(value?: string | null): number | null {

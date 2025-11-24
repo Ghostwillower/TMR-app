@@ -16,21 +16,11 @@ import { cueManager } from '../services/CueManager';
 import { BiometricData } from '../utils/DemoBiometricSimulator';
 
 export const SettingsScreen: React.FC = () => {
-  const { demoMode, settings, toggleDemoMode, toggleDarkMode, updateSettings, clearAllData } = useApp();
+  const { demoMode, settings, toggleDarkMode, updateSettings, clearAllData, useWearable } = useApp();
   const [runningDemo, setRunningDemo] = useState(false);
 
   const handleModeChange = (value: boolean) => {
-    if (!value) {
-      Alert.alert(
-        'Real Mode Not Ready',
-        'A compatible biometric transport is required to leave Demo Mode. The app will stay in Demo Mode until hardware is connected.'
-      );
-      return;
-    }
-
-    if (!demoMode) {
-      toggleDemoMode();
-    }
+    updateSettings({ useWearable: value });
   };
 
   const handleClearData = () => {
@@ -140,25 +130,18 @@ export const SettingsScreen: React.FC = () => {
         <Text style={styles.sectionTitle}>Mode</Text>
         <View style={styles.settingRow}>
           <View style={styles.settingInfo}>
-            <Text style={styles.settingLabel}>Demo Mode</Text>
+            <Text style={styles.settingLabel}>Use wearable</Text>
             <Text style={styles.settingDescription}>
-              Use simulated biometric data for testing
+              Stream biometrics from a connected wristband and trigger cues via a hub
             </Text>
           </View>
           <Switch
-            value={demoMode}
+            value={useWearable}
             onValueChange={handleModeChange}
             trackColor={{ false: '#767577', true: '#81b0ff' }}
-            thumbColor={demoMode ? '#6200ee' : '#f4f3f4'}
+            thumbColor={useWearable ? '#6200ee' : '#f4f3f4'}
           />
         </View>
-        {!demoMode && (
-          <View style={styles.notice}>
-            <Text style={styles.noticeText}>
-              ⚠️ Real Mode not yet implemented. BLE connectivity coming in Step 9.
-            </Text>
-          </View>
-        )}
         {demoMode && (
           <TouchableOpacity
             style={styles.demoButton}

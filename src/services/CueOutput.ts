@@ -4,6 +4,7 @@ export interface CueOutput {
   playCue(cueId: string, cueName: string, volume: number): Promise<void>;
   stopCue(): Promise<void>;
   isAvailable(): boolean;
+  getHubStatus?(): Promise<HubStatus>;
 }
 
 export class PhoneSpeakerOutput implements CueOutput {
@@ -57,6 +58,11 @@ export class HubOutput implements CueOutput {
 
     if (connected) {
       try {
+        if (this.shouldUseWifi()) {
+          await this.sendWifiCommand('/play-cue', { cueId, cueName, volume });
+          return;
+        }
+
         const { bleService } = await import('./BLEService');
         await bleService.sendAudioCueTrigger(cueId);
         return;
@@ -74,6 +80,11 @@ export class HubOutput implements CueOutput {
   async stopCue(): Promise<void> {
     if (this.connected) {
       try {
+        if (this.shouldUseWifi()) {
+          await this.sendWifiCommand('/stop-cue', {});
+          return;
+        }
+
         const { bleService } = await import('./BLEService');
         await bleService.sendStopAudioCue();
         return;
@@ -93,16 +104,20 @@ export class HubOutput implements CueOutput {
 
   async connectToHub(hubId?: string): Promise<void> {
     try {
-      const { bleService } = await import('./BLEService');
       this.hubId = hubId ?? this.hubId;
 
       if (!this.hubId) {
         throw new Error('Hub identifier not provided');
       }
 
-      await bleService.initialize();
-      await bleService.connectToDevice(this.hubId, 'HUB');
-      this.connected = bleService.isHubConnected();
+      if (this.shouldUseWifi()) {
+        await this.pingHub();
+      } else {
+        const { bleService } = await import('./BLEService');
+        await bleService.initialize();
+        await bleService.connectToDevice(this.hubId, 'HUB');
+        this.connected = bleService.isHubConnected();
+      }
       this.lastError = null;
     } catch (error) {
       this.connected = false;
@@ -134,6 +149,44 @@ export class HubOutput implements CueOutput {
     }
 
     return false;
+  }
+
+  private shouldUseWifi(): boolean {
+    return !!this.hubId && this.hubId.startsWith('http');
+  }
+
+  private async pingHub(): Promise<void> {
+    if (!this.hubId) {
+      throw new Error('Hub identifier not provided');
+    }
+
+    try {
+      const response = await fetch(`${this.hubId}/status`);
+      if (!response.ok) {
+        throw new Error(`Hub responded with status ${response.status}`);
+      }
+      this.connected = true;
+    } catch (error) {
+      this.connected = false;
+      this.lastError = error instanceof Error ? error.message : String(error);
+      throw error;
+    }
+  }
+
+  private async sendWifiCommand(path: string, payload: Record<string, any>): Promise<void> {
+    if (!this.hubId) {
+      throw new Error('Hub identifier not provided');
+    }
+
+    const response = await fetch(`${this.hubId}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Hub command failed with status ${response.status}`);
+    }
   }
 
   // Future methods for hub integration:

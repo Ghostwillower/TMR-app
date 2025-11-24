@@ -1,12 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BiometricData } from '../utils/DemoBiometricSimulator';
 import { SessionLog, sessionEngine } from '../services/SessionEngine';
 import { cueManager, AudioCue, CueSet } from '../services/CueManager';
 import { learningModule, LearningItem, MemoryTest } from '../services/LearningModule';
-import { BiometricSource, DemoBiometricSource, RealBiometricSource } from '../services/BiometricSource';
-import { CueOutput, PhoneSpeakerOutput, HubOutput } from '../services/CueOutput';
+import { BiometricSource, BiometricStatus, DemoBiometricSource, RealBiometricSource } from '../services/BiometricSource';
+import { CueOutput, PhoneSpeakerOutput, HubOutput, HubStatus } from '../services/CueOutput';
 
 export interface AppSettings {
   demoMode: boolean;
@@ -15,6 +14,7 @@ export interface AppSettings {
   minSecondsBetweenCues: number;
   movementThreshold: number;
   hrSpikeThreshold: number;
+  useWearable: boolean;
 }
 
 interface AppContextType {
@@ -23,6 +23,9 @@ interface AppContextType {
   currentSession: SessionLog | null;
   currentBiometrics: BiometricData | null;
   settings: AppSettings;
+  useWearable: boolean;
+  biometricStatus: BiometricStatus | null;
+  hubStatus: HubStatus | null;
   
   // Session Actions
   startSession: (notes?: string) => Promise<void>;
@@ -58,16 +61,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     minSecondsBetweenCues: 120,
     movementThreshold: 30,
     hrSpikeThreshold: 20,
+    useWearable: false,
   };
 
-  const [demoMode, setDemoMode] = useState(DEFAULT_SETTINGS.demoMode);
   const [currentSession, setCurrentSession] = useState<SessionLog | null>(null);
   const [currentBiometrics, setCurrentBiometrics] = useState<BiometricData | null>(null);
   const [cues, setCues] = useState<AudioCue[]>([]);
   const [cueSets, setCueSets] = useState<CueSet[]>([]);
   const [learningItems, setLearningItems] = useState<LearningItem[]>([]);
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  const [biometricStatus, setBiometricStatus] = useState<BiometricStatus | null>(null);
+  const [hubStatus, setHubStatus] = useState<HubStatus | null>(null);
   const [initialized, setInitialized] = useState(false);
+
+  const demoMode = !settings.useWearable;
+  const useWearable = settings.useWearable;
 
   const biometricSourceRef = React.useRef<BiometricSource | null>(null);
   const cueOutputRef = React.useRef<CueOutput | null>(null);
@@ -81,6 +89,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       initializeServices();
     }
   }, [initialized]);
+
+  useEffect(() => {
+    if (!initialized) return;
+    initializeServices();
+  }, [useWearable]);
 
   useEffect(() => {
     // Update session engine settings when settings change
@@ -112,13 +125,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (storedSettings) {
         const parsedSettings = JSON.parse(storedSettings) as Partial<AppSettings>;
         const mergedSettings = { ...DEFAULT_SETTINGS, ...parsedSettings } as AppSettings;
+        if (parsedSettings.useWearable === undefined && parsedSettings.demoMode !== undefined) {
+          mergedSettings.useWearable = !parsedSettings.demoMode;
+        }
         setSettings(mergedSettings);
-        setDemoMode(parsedSettings.demoMode ?? DEFAULT_SETTINGS.demoMode);
       }
     } catch (error) {
       console.error('Error loading settings:', error);
       setSettings(DEFAULT_SETTINGS);
-      setDemoMode(DEFAULT_SETTINGS.demoMode);
     } finally {
       setInitialized(true);
     }
@@ -129,8 +143,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     await learningModule.initialize();
     await refreshCues();
     await refreshLearning();
-    
+
     // Initialize biometric source and cue output based on mode
+    await configureTransports();
+  };
+
+  const configureTransports = async () => {
+    // Stop existing streams before switching
+    if (biometricSourceRef.current) {
+      await biometricSourceRef.current.stop();
+    }
+
     if (demoMode) {
       biometricSourceRef.current = new DemoBiometricSource();
       cueOutputRef.current = new PhoneSpeakerOutput();
@@ -138,22 +161,31 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       biometricSourceRef.current = new RealBiometricSource();
       cueOutputRef.current = new HubOutput();
     }
+
+    if (biometricSourceRef.current?.onStatus) {
+      biometricSourceRef.current.onStatus((status) => setBiometricStatus(status));
+    }
+
+    const nextBioStatus = biometricSourceRef.current?.getStatus?.() ?? null;
+    if (nextBioStatus) setBiometricStatus(nextBioStatus);
+
+    if (cueOutputRef.current && 'getHubStatus' in cueOutputRef.current) {
+      const hub = await (cueOutputRef.current as HubOutput).getHubStatus();
+      setHubStatus(hub);
+    } else {
+      setHubStatus(null);
+    }
   };
 
   const startSession = async (notes?: string) => {
-    if (!demoMode) {
-      Alert.alert(
-        'Real Mode Unavailable',
-        'Hardware streaming is not available yet. Please stay in Demo Mode until a real transport is connected.'
-      );
-      return;
-    }
-
     const session = sessionEngine.startSession(notes);
     setCurrentSession(session);
 
     // Start biometric source
     if (biometricSourceRef.current) {
+      if (biometricSourceRef.current.onStatus) {
+        biometricSourceRef.current.onStatus((status) => setBiometricStatus(status));
+      }
       biometricSourceRef.current.onData((data) => {
         setCurrentBiometrics(data);
         sessionEngine.logBiometrics(data);
@@ -169,6 +201,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       });
 
       await biometricSourceRef.current.start();
+      setBiometricStatus(biometricSourceRef.current.getStatus?.() ?? biometricStatus);
     }
   };
 
@@ -182,6 +215,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         const updatedSession = sessionEngine.getCurrentSession();
         if (updatedSession) {
           setCurrentSession({ ...updatedSession });
+        }
+
+        if ('getHubStatus' in cueOutputRef.current) {
+          const status = await (cueOutputRef.current as HubOutput).getHubStatus();
+          setHubStatus(status);
         }
       } catch (error) {
         console.error('Error playing cue:', error);
@@ -225,27 +263,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const toggleDemoMode = () => {
-    // Prevent switching into Real Mode until a true hardware transport exists
-    if (demoMode) {
-      Alert.alert(
-        'Real Mode Not Implemented',
-        'Connect to a supported biometric transport to leave Demo Mode. Until then, the app will remain in Demo Mode for safety.'
-      );
-      return;
-    }
-
     const newMode = !demoMode;
-    setDemoMode(newMode);
-    setSettings({ ...settings, demoMode: newMode });
-
-    // Reinitialize biometric source and cue output
-    if (newMode) {
-      biometricSourceRef.current = new DemoBiometricSource();
-      cueOutputRef.current = new PhoneSpeakerOutput();
-    } else {
-      biometricSourceRef.current = new RealBiometricSource();
-      cueOutputRef.current = new HubOutput();
-    }
+    setSettings({ ...settings, demoMode: newMode, useWearable: !newMode });
   };
 
   const toggleDarkMode = () => {
@@ -253,7 +272,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const updateSettings = (newSettings: Partial<AppSettings>) => {
-    setSettings({ ...settings, ...newSettings });
+    const merged = { ...settings, ...newSettings } as AppSettings;
+    if (newSettings.useWearable !== undefined) {
+      merged.demoMode = !newSettings.useWearable;
+    }
+    setSettings(merged);
   };
 
   const clearAllData = async () => {
@@ -270,6 +293,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     currentSession,
     currentBiometrics,
     settings,
+    useWearable,
+    biometricStatus,
+    hubStatus,
     cues,
     cueSets,
     learningItems,

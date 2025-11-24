@@ -11,12 +11,15 @@ import {
 import { useApp } from '../contexts/AppContext';
 
 export const SessionScreen: React.FC = () => {
-  const { 
-    demoMode, 
-    currentSession, 
+  const {
+    demoMode,
+    useWearable,
+    currentSession,
     currentBiometrics,
-    startSession, 
-    pauseSession, 
+    biometricStatus,
+    hubStatus,
+    startSession,
+    pauseSession,
     resumeSession,
     stopSession 
   } = useApp();
@@ -61,6 +64,16 @@ export const SessionScreen: React.FC = () => {
     return `${minutes}m ${seconds}s`;
   };
 
+  const renderStatusValue = (connected: boolean, name?: string | null, error?: string | null) => {
+    if (connected) {
+      return `Connected${name ? ` (${name})` : ''}`;
+    }
+    if (error) {
+      return `Disconnected (${error})`;
+    }
+    return 'Disconnected';
+  };
+
   if (!currentSession) {
     return (
       <View style={styles.container}>
@@ -82,9 +95,16 @@ export const SessionScreen: React.FC = () => {
               </Text>
             </View>
           )}
+          {useWearable && (
+            <View style={styles.notice}>
+              <Text style={styles.noticeText}>
+                🔗 Wearable streaming enabled. Check hub connection below.
+              </Text>
+            </View>
+          )}
 
-          <TouchableOpacity 
-            style={styles.startButton} 
+          <TouchableOpacity
+            style={styles.startButton}
             onPress={() => setShowNotesModal(true)}
           >
             <Text style={styles.startButtonText}>Start Session</Text>
@@ -136,6 +156,26 @@ export const SessionScreen: React.FC = () => {
       <View style={styles.header}>
         <Text style={styles.title}>Active Session</Text>
         <Text style={styles.headerSubtext}>{formatDuration(duration)}</Text>
+      </View>
+
+      <View style={styles.statusCard}>
+        <Text style={styles.cardTitle}>Connections</Text>
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Wearable:</Text>
+          <Text style={styles.summaryValue}>
+            {renderStatusValue(
+              biometricStatus?.connected ?? false,
+              biometricStatus?.deviceName,
+              biometricStatus?.lastError
+            )}
+          </Text>
+        </View>
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Hub:</Text>
+          <Text style={styles.summaryValue}>
+            {renderStatusValue(hubStatus?.connected ?? false, hubStatus?.hubId, hubStatus?.lastError)}
+          </Text>
+        </View>
       </View>
 
       {currentBiometrics && (
@@ -302,9 +342,22 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 20,
   },
+  notice: {
+    backgroundColor: '#fff3cd',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#ffeeba',
+  },
   demoNoticeText: {
     fontSize: 14,
     color: '#1976d2',
+    textAlign: 'center',
+  },
+  noticeText: {
+    fontSize: 14,
+    color: '#856404',
     textAlign: 'center',
   },
   startButton: {
@@ -371,6 +424,13 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   summaryCard: {
+    backgroundColor: '#fff',
+    margin: 15,
+    padding: 20,
+    borderRadius: 10,
+    elevation: 3,
+  },
+  statusCard: {
     backgroundColor: '#fff',
     margin: 15,
     padding: 20,
