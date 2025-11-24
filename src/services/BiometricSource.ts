@@ -74,7 +74,7 @@ export class RealBiometricSource implements BiometricSource {
   private callback: ((data: BiometricData) => void) | null = null;
   private connected: boolean = false;
   private manager = new BleManager();
-  private scanSubscription: Subscription | null = null;
+  private scanning: boolean = false;
   private dataSubscriptions: Subscription[] = [];
   private connectionSubscription: Subscription | null = null;
   private selectedDevice: Device | null = null;
@@ -169,12 +169,18 @@ export class RealBiometricSource implements BiometricSource {
     };
   }
 
+  private emitStatus(): void {
+    if (this.statusCallback) {
+      this.statusCallback(this.getStatus());
+    }
+  }
+
   async requestPermissions(): Promise<boolean> {
     if (Platform.OS !== 'android') {
       return true;
     }
 
-    const permissions: string[] = [];
+    const permissions: (typeof PermissionsAndroid.PERMISSIONS)[keyof typeof PermissionsAndroid.PERMISSIONS][] = [];
 
     if (Platform.Version >= 31) {
       permissions.push(
@@ -192,7 +198,7 @@ export class RealBiometricSource implements BiometricSource {
   }
 
   async scanForDevices(onDeviceFound?: (device: Device) => void, timeoutMs: number = 8000): Promise<Device | null> {
-    if (this.scanSubscription) {
+    if (this.scanning) {
       return this.selectedDevice;
     }
 
@@ -200,7 +206,8 @@ export class RealBiometricSource implements BiometricSource {
       const discoveredDevices: Record<string, Device> = {};
       let resolved = false;
 
-      this.scanSubscription = this.manager.startDeviceScan(null, null, (error, device) => {
+      this.scanning = true;
+      this.manager.startDeviceScan(null, null, (error, device) => {
         if (error) {
           console.warn('Scan error', error);
           this.stopScan();
@@ -240,10 +247,7 @@ export class RealBiometricSource implements BiometricSource {
   }
 
   private stopScan(): void {
-    if (this.scanSubscription) {
-      this.scanSubscription.remove();
-      this.scanSubscription = null;
-    }
+    this.scanning = false;
     this.manager.stopDeviceScan();
   }
 

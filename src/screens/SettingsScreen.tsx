@@ -66,7 +66,7 @@ export const SettingsScreen: React.FC = () => {
       const session = sessionEngine.startSession('Fast-forward demo session', sessionStartTime);
 
       // Simulate 8 hours of sleep in compressed time
-      const stages = ['Awake', 'Light', 'Deep', 'Light', 'REM', 'Light', 'Deep', 'REM'];
+      const stages: ('Awake' | 'Light' | 'Deep' | 'REM')[] = ['Awake', 'Light', 'Deep', 'Light', 'REM', 'Light', 'Deep', 'REM'];
       const totalMinutes = 8 * 60; // 8 hours
       const timePerStage = (totalMinutes * 60 * 1000) / stages.length; // ms per stage
 
