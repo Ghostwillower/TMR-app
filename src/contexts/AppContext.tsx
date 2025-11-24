@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BiometricData } from '../utils/DemoBiometricSimulator';
 import { SessionLog, sessionEngine } from '../services/SessionEngine';
 import { cueManager, AudioCue, CueSet } from '../services/CueManager';
@@ -50,27 +51,36 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [demoMode, setDemoMode] = useState(true);
-  const [currentSession, setCurrentSession] = useState<SessionLog | null>(null);
-  const [currentBiometrics, setCurrentBiometrics] = useState<BiometricData | null>(null);
-  const [cues, setCues] = useState<AudioCue[]>([]);
-  const [cueSets, setCueSets] = useState<CueSet[]>([]);
-  const [learningItems, setLearningItems] = useState<LearningItem[]>([]);
-  const [settings, setSettings] = useState<AppSettings>({
+  const DEFAULT_SETTINGS: AppSettings = {
     demoMode: true,
     darkMode: false,
     maxCuesPerSession: 10,
     minSecondsBetweenCues: 120,
     movementThreshold: 30,
     hrSpikeThreshold: 20,
-  });
+  };
+
+  const [demoMode, setDemoMode] = useState(DEFAULT_SETTINGS.demoMode);
+  const [currentSession, setCurrentSession] = useState<SessionLog | null>(null);
+  const [currentBiometrics, setCurrentBiometrics] = useState<BiometricData | null>(null);
+  const [cues, setCues] = useState<AudioCue[]>([]);
+  const [cueSets, setCueSets] = useState<CueSet[]>([]);
+  const [learningItems, setLearningItems] = useState<LearningItem[]>([]);
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  const [initialized, setInitialized] = useState(false);
 
   const biometricSourceRef = React.useRef<BiometricSource | null>(null);
   const cueOutputRef = React.useRef<CueOutput | null>(null);
 
   useEffect(() => {
-    initializeServices();
+    loadSettings();
   }, []);
+
+  useEffect(() => {
+    if (initialized) {
+      initializeServices();
+    }
+  }, [initialized]);
 
   useEffect(() => {
     // Update session engine settings when settings change
@@ -81,6 +91,38 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       hrSpikeThreshold: settings.hrSpikeThreshold,
     });
   }, [settings]);
+
+  useEffect(() => {
+    if (!initialized) return;
+
+    const persistSettings = async () => {
+      try {
+        await AsyncStorage.setItem('tmr_settings', JSON.stringify(settings));
+      } catch (error) {
+        console.error('Error saving settings:', error);
+      }
+    };
+
+    persistSettings();
+  }, [settings, initialized]);
+
+  const loadSettings = async () => {
+    try {
+      const storedSettings = await AsyncStorage.getItem('tmr_settings');
+      if (storedSettings) {
+        const parsedSettings = JSON.parse(storedSettings) as Partial<AppSettings>;
+        const mergedSettings = { ...DEFAULT_SETTINGS, ...parsedSettings } as AppSettings;
+        setSettings(mergedSettings);
+        setDemoMode(parsedSettings.demoMode ?? DEFAULT_SETTINGS.demoMode);
+      }
+    } catch (error) {
+      console.error('Error loading settings:', error);
+      setSettings(DEFAULT_SETTINGS);
+      setDemoMode(DEFAULT_SETTINGS.demoMode);
+    } finally {
+      setInitialized(true);
+    }
+  };
 
   const initializeServices = async () => {
     await cueManager.initialize();
@@ -242,6 +284,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     updateSettings,
     clearAllData,
   };
+
+  if (!initialized) {
+    return null;
+  }
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 };
