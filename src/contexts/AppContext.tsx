@@ -148,7 +148,32 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     await configureTransports();
   };
 
+  const bindBiometricHandlers = (shouldStream: boolean) => {
+    if (!biometricSourceRef.current) return;
+
+    if (biometricSourceRef.current.onStatus) {
+      biometricSourceRef.current.onStatus((status) => setBiometricStatus(status));
+    }
+
+    if (shouldStream) {
+      biometricSourceRef.current.onData((data) => {
+        setCurrentBiometrics(data);
+        sessionEngine.logBiometrics(data);
+
+        if (sessionEngine.isCueAllowed(data)) {
+          const enabledCues = cueManager.getEnabledCuesFromActiveSet();
+          if (enabledCues.length > 0) {
+            const randomCue = enabledCues[Math.floor(Math.random() * enabledCues.length)];
+            playCueIfAllowed(randomCue, data.sleepStage);
+          }
+        }
+      });
+    }
+  };
+
   const configureTransports = async () => {
+    const sessionActive = sessionEngine.getCurrentSession() !== null;
+
     // Stop existing streams before switching
     if (biometricSourceRef.current) {
       await biometricSourceRef.current.stop();
@@ -162,9 +187,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       cueOutputRef.current = new HubOutput();
     }
 
-    if (biometricSourceRef.current?.onStatus) {
-      biometricSourceRef.current.onStatus((status) => setBiometricStatus(status));
-    }
+    bindBiometricHandlers(sessionActive);
 
     const nextBioStatus = biometricSourceRef.current?.getStatus?.() ?? null;
     if (nextBioStatus) setBiometricStatus(nextBioStatus);
@@ -175,6 +198,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } else {
       setHubStatus(null);
     }
+
+    if (sessionActive && biometricSourceRef.current) {
+      await biometricSourceRef.current.start();
+      setBiometricStatus(biometricSourceRef.current.getStatus?.() ?? biometricStatus);
+    }
   };
 
   const startSession = async (notes?: string) => {
@@ -183,22 +211,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     // Start biometric source
     if (biometricSourceRef.current) {
-      if (biometricSourceRef.current.onStatus) {
-        biometricSourceRef.current.onStatus((status) => setBiometricStatus(status));
-      }
-      biometricSourceRef.current.onData((data) => {
-        setCurrentBiometrics(data);
-        sessionEngine.logBiometrics(data);
-
-        // Check if cue should be played
-        if (sessionEngine.isCueAllowed(data)) {
-          const enabledCues = cueManager.getEnabledCuesFromActiveSet();
-          if (enabledCues.length > 0) {
-            const randomCue = enabledCues[Math.floor(Math.random() * enabledCues.length)];
-            playCueIfAllowed(randomCue, data.sleepStage);
-          }
-        }
-      });
+      bindBiometricHandlers(true);
 
       await biometricSourceRef.current.start();
       setBiometricStatus(biometricSourceRef.current.getStatus?.() ?? biometricStatus);

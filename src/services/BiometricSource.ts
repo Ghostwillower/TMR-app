@@ -82,6 +82,9 @@ export class RealBiometricSource implements BiometricSource {
   private latestHeartRate: number = 70;
   private latestMovement: number = 5;
   private latestTemperature: number = 36.5;
+  private hasReceivedHeartRate: boolean = false;
+  private hasReceivedMovement: boolean = false;
+  private hasReceivedTemperature: boolean = false;
   private emitTimer: NodeJS.Timeout | null = null;
   private statusCallback: ((status: BiometricStatus) => void) | null = null;
   private lastError: string | null = null;
@@ -276,6 +279,9 @@ export class RealBiometricSource implements BiometricSource {
 
   private startStreaming(device: Device): void {
     this.stopStreaming();
+    this.hasReceivedHeartRate = false;
+    this.hasReceivedMovement = false;
+    this.hasReceivedTemperature = false;
 
     try {
       this.dataSubscriptions.push(
@@ -293,6 +299,7 @@ export class RealBiometricSource implements BiometricSource {
             const heartRate = this.parseHeartRate(characteristic?.value);
             if (heartRate !== null) {
               this.latestHeartRate = heartRate;
+              this.hasReceivedHeartRate = true;
               this.emitData();
             }
           }
@@ -318,6 +325,7 @@ export class RealBiometricSource implements BiometricSource {
             const movement = this.parseMovement(characteristic?.value);
             if (movement !== null) {
               this.latestMovement = movement;
+              this.hasReceivedMovement = true;
               this.emitData();
             }
           }
@@ -343,6 +351,7 @@ export class RealBiometricSource implements BiometricSource {
             const temperature = this.parseTemperature(characteristic?.value);
             if (temperature !== null) {
               this.latestTemperature = temperature;
+              this.hasReceivedTemperature = true;
               this.emitData();
             }
           }
@@ -363,6 +372,9 @@ export class RealBiometricSource implements BiometricSource {
   private stopStreaming(): void {
     this.dataSubscriptions.forEach((subscription) => subscription.remove());
     this.dataSubscriptions = [];
+    this.hasReceivedHeartRate = false;
+    this.hasReceivedMovement = false;
+    this.hasReceivedTemperature = false;
     if (this.emitTimer) {
       clearInterval(this.emitTimer);
       this.emitTimer = null;
@@ -426,7 +438,7 @@ export class RealBiometricSource implements BiometricSource {
   }
 
   private emitData(): void {
-    if (!this.callback) return;
+    if (!this.callback || !this.hasReceivedHeartRate || !this.hasReceivedMovement) return;
 
     const movement = this.latestMovement;
     const heartRate = this.latestHeartRate;
