@@ -26,19 +26,43 @@ export interface CuePlayEvent {
   sleepStage: string;
 }
 
+export interface AdaptiveState {
+  enabled: boolean;
+  cuesPaused: boolean;
+  reason?: string;
+  effectiveCooldown: number;
+  movementVolatility: number;
+  hrVolatility: number;
+}
+
 export class SessionEngine {
   private currentSession: SessionLog | null = null;
   private logInterval: NodeJS.Timeout | null = null;
   private stageStartTime: number = 0;
   private currentStage: string = 'Awake';
   private lastCueTime: number = 0;
-  
+
   // Cue safety settings
   private minSecondsBetweenCues: number = 120;
   private maxCuesPerSession: number = 10;
   private movementThreshold: number = 30;
   private hrSpikeThreshold: number = 20;
   private lastHR: number = 70;
+
+  // Adaptive cueing
+  private adaptiveModeEnabled: boolean = false;
+  private adaptiveMovementSensitivity: number = 0.5;
+  private adaptiveHRSensitivity: number = 0.5;
+  private movementWindow: number[] = [];
+  private hrWindow: number[] = [];
+  private adaptivePauseUntil: number = 0;
+  private adaptiveState: AdaptiveState = {
+    enabled: false,
+    cuesPaused: false,
+    effectiveCooldown: this.minSecondsBetweenCues,
+    movementVolatility: 0,
+    hrVolatility: 0,
+  };
 
   startSession(notes?: string, startTime: number = Date.now()): SessionLog {
     this.currentSession = {
@@ -60,6 +84,18 @@ export class SessionEngine {
     this.stageStartTime = startTime;
     this.currentStage = 'Awake';
     this.lastCueTime = 0;
+    this.movementWindow = [];
+    this.hrWindow = [];
+    this.adaptivePauseUntil = 0;
+    this.adaptiveState = {
+      ...this.adaptiveState,
+      enabled: this.adaptiveModeEnabled,
+      cuesPaused: false,
+      reason: undefined,
+      effectiveCooldown: this.getEffectiveCooldownSeconds(),
+      movementVolatility: 0,
+      hrVolatility: 0,
+    };
 
     return this.currentSession;
   }
@@ -71,6 +107,9 @@ export class SessionEngine {
 
     // Add to biometric logs
     this.currentSession.biometricLogs.push(data);
+
+    // Update rolling windows
+    this.updateRollingMetrics(data);
 
     // Update stage timings if stage changed
     if (data.sleepStage !== this.currentStage) {
@@ -93,6 +132,19 @@ export class SessionEngine {
   isCueAllowed(data: BiometricData, currentTime: number = Date.now()): boolean {
     if (!this.currentSession) return false;
 
+    // Adaptive pause handling
+    if (this.adaptiveModeEnabled && currentTime < this.adaptivePauseUntil) {
+      this.adaptiveState = {
+        ...this.adaptiveState,
+        cuesPaused: true,
+        reason:
+          this.adaptiveState.reason ||
+          'Cues paused due to elevated movement or heart rate variability',
+        effectiveCooldown: this.getEffectiveCooldownSeconds(),
+      };
+      return false;
+    }
+
     // Rule 1: Stage must be Light or Deep
     if (data.sleepStage !== 'Light' && data.sleepStage !== 'Deep') {
       return false;
@@ -110,8 +162,9 @@ export class SessionEngine {
     }
 
     // Rule 4: Cooldown period
+    const cooldownSeconds = this.getEffectiveCooldownSeconds();
     const timeSinceLastCue = (currentTime - this.lastCueTime) / 1000;
-    if (this.lastCueTime > 0 && timeSinceLastCue < this.minSecondsBetweenCues) {
+    if (this.lastCueTime > 0 && timeSinceLastCue < cooldownSeconds) {
       return false;
     }
 
@@ -191,6 +244,9 @@ export class SessionEngine {
     maxCuesPerSession?: number;
     movementThreshold?: number;
     hrSpikeThreshold?: number;
+    adaptiveModeEnabled?: boolean;
+    adaptiveMovementSensitivity?: number;
+    adaptiveHRSensitivity?: number;
   }): void {
     if (settings.minSecondsBetweenCues !== undefined) {
       this.minSecondsBetweenCues = settings.minSecondsBetweenCues;
@@ -204,6 +260,25 @@ export class SessionEngine {
     if (settings.hrSpikeThreshold !== undefined) {
       this.hrSpikeThreshold = settings.hrSpikeThreshold;
     }
+    if (settings.adaptiveModeEnabled !== undefined) {
+      this.adaptiveModeEnabled = settings.adaptiveModeEnabled;
+    }
+    if (settings.adaptiveMovementSensitivity !== undefined) {
+      this.adaptiveMovementSensitivity = settings.adaptiveMovementSensitivity;
+    }
+    if (settings.adaptiveHRSensitivity !== undefined) {
+      this.adaptiveHRSensitivity = settings.adaptiveHRSensitivity;
+    }
+
+    this.adaptiveState = {
+      ...this.adaptiveState,
+      enabled: this.adaptiveModeEnabled,
+      effectiveCooldown: this.getEffectiveCooldownSeconds(),
+    };
+  }
+
+  getAdaptiveState(): AdaptiveState {
+    return this.adaptiveState;
   }
 
   private async saveSession(session: SessionLog): Promise<void> {
@@ -229,6 +304,95 @@ export class SessionEngine {
   async getSessionById(id: string): Promise<SessionLog | null> {
     const sessions = await this.getAllSessions();
     return sessions.find(s => s.id === id) || null;
+  }
+
+  private updateRollingMetrics(data: BiometricData) {
+    const maxWindowSize = 20;
+
+    this.movementWindow.push(data.movement);
+    if (this.movementWindow.length > maxWindowSize) {
+      this.movementWindow.shift();
+    }
+
+    this.hrWindow.push(data.heartRate);
+    if (this.hrWindow.length > maxWindowSize) {
+      this.hrWindow.shift();
+    }
+
+    this.evaluateAdaptiveState(data.timestamp ?? Date.now());
+  }
+
+  private evaluateAdaptiveState(currentTime: number) {
+    if (!this.adaptiveModeEnabled) {
+      this.adaptiveState = {
+        ...this.adaptiveState,
+        enabled: false,
+        cuesPaused: false,
+        reason: undefined,
+        effectiveCooldown: this.minSecondsBetweenCues,
+      };
+      return;
+    }
+
+    const movementVolatility = this.calculateVolatility(this.movementWindow);
+    const hrVolatility = this.calculateVolatility(this.hrWindow);
+
+    const movementThreshold = 8 + this.adaptiveMovementSensitivity * 20;
+    const hrThreshold = 5 + this.adaptiveHRSensitivity * 20;
+
+    const excessiveMovement = movementVolatility > movementThreshold * 1.2;
+    const excessiveHR = hrVolatility > hrThreshold * 1.2;
+
+    if (excessiveMovement || excessiveHR) {
+      const pauseDuration = 30000 + 20000 * (this.adaptiveMovementSensitivity + this.adaptiveHRSensitivity) / 2;
+      this.adaptivePauseUntil = currentTime + pauseDuration;
+      this.adaptiveState = {
+        enabled: true,
+        cuesPaused: true,
+        reason: excessiveMovement
+          ? 'Cues paused: elevated movement variability'
+          : 'Cues paused: elevated heart rate variability',
+        effectiveCooldown: this.getEffectiveCooldownSeconds(true),
+        movementVolatility,
+        hrVolatility,
+      };
+      return;
+    }
+
+    const onWatchlist = movementVolatility > movementThreshold || hrVolatility > hrThreshold;
+    this.adaptiveState = {
+      enabled: true,
+      cuesPaused: false,
+      reason: onWatchlist
+        ? 'Adaptive cooling: biometrics slightly elevated'
+        : undefined,
+      effectiveCooldown: this.getEffectiveCooldownSeconds(onWatchlist),
+      movementVolatility,
+      hrVolatility,
+    };
+  }
+
+  private calculateVolatility(values: number[]): number {
+    if (values.length === 0) return 0;
+    const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+    const variance = values.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0) / values.length;
+    return Math.sqrt(variance);
+  }
+
+  private getEffectiveCooldownSeconds(onWatchlist: boolean = false): number {
+    if (!this.adaptiveModeEnabled) {
+      return this.minSecondsBetweenCues;
+    }
+
+    if (this.adaptivePauseUntil > (Date.now())) {
+      return this.minSecondsBetweenCues * 3;
+    }
+
+    if (onWatchlist) {
+      return this.minSecondsBetweenCues * 1.5;
+    }
+
+    return this.minSecondsBetweenCues;
   }
 }
 
