@@ -11,14 +11,15 @@ import {
 import { useApp } from '../contexts/AppContext';
 
 export const SessionScreen: React.FC = () => {
-  const { 
-    demoMode, 
-    currentSession, 
+  const {
+    demoMode,
+    currentSession,
     currentBiometrics,
-    startSession, 
-    pauseSession, 
+    adaptiveState,
+    startSession,
+    pauseSession,
     resumeSession,
-    stopSession 
+    stopSession
   } = useApp();
   
   const [showNotesModal, setShowNotesModal] = useState(false);
@@ -59,6 +60,18 @@ export const SessionScreen: React.FC = () => {
     const minutes = Math.floor(ms / 60000);
     const seconds = Math.floor((ms % 60000) / 1000);
     return `${minutes}m ${seconds}s`;
+  };
+
+  const renderAdaptiveStatus = () => {
+    if (!adaptiveState || !adaptiveState.enabled) {
+      return 'Adaptive cueing is off';
+    }
+
+    if (adaptiveState.cuesPaused) {
+      return adaptiveState.reason || 'Cues paused by adaptive safety';
+    }
+
+    return adaptiveState.reason || 'Adaptive cueing is monitoring normally';
   };
 
   if (!currentSession) {
@@ -182,6 +195,32 @@ export const SessionScreen: React.FC = () => {
                 {currentSession.biometricLogs.length}
               </Text>
             </View>
+          </View>
+
+          <View style={styles.biometricsCard}>
+            <Text style={styles.cardTitle}>Adaptive Cueing</Text>
+            <View style={styles.biometricRow}>
+              <Text style={styles.biometricLabel}>Status</Text>
+              <Text style={[styles.biometricValue, adaptiveState?.cuesPaused ? styles.warningText : undefined]}>
+                {renderAdaptiveStatus()}
+              </Text>
+            </View>
+            {adaptiveState && adaptiveState.enabled && (
+              <>
+                <View style={styles.biometricRow}>
+                  <Text style={styles.biometricLabel}>Cooldown</Text>
+                  <Text style={styles.biometricValue}>{Math.round(adaptiveState.effectiveCooldown)}s</Text>
+                </View>
+                <View style={styles.biometricRow}>
+                  <Text style={styles.biometricLabel}>Movement Volatility</Text>
+                  <Text style={styles.biometricValue}>{adaptiveState.movementVolatility.toFixed(1)}</Text>
+                </View>
+                <View style={styles.biometricRow}>
+                  <Text style={styles.biometricLabel}>HR Volatility</Text>
+                  <Text style={styles.biometricValue}>{adaptiveState.hrVolatility.toFixed(1)}</Text>
+                </View>
+              </>
+            )}
           </View>
         </>
       )}
@@ -369,6 +408,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
+  },
+  warningText: {
+    color: '#d32f2f',
   },
   summaryCard: {
     backgroundColor: '#fff',

@@ -14,6 +14,7 @@ import {
   ToastAndroid,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
+import Slider from '@react-native-community/slider';
 import { useApp } from '../contexts/AppContext';
 import { sessionEngine } from '../services/SessionEngine';
 import { cueManager } from '../services/CueManager';
@@ -301,6 +302,67 @@ export const SettingsScreen: React.FC = () => {
       </View>
 
       <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Adaptive Cueing</Text>
+
+        <View style={styles.settingRow}>
+          <View style={styles.settingInfo}>
+            <Text style={styles.settingLabel}>Adaptive Mode</Text>
+            <Text style={styles.settingDescription}>
+              Dynamically slow or pause cues when biometrics fluctuate
+            </Text>
+          </View>
+          <Switch
+            value={settings.adaptiveModeEnabled}
+            onValueChange={(value) => updateSettings({ adaptiveModeEnabled: value })}
+            trackColor={{ false: '#767577', true: '#81b0ff' }}
+            thumbColor={settings.adaptiveModeEnabled ? '#6200ee' : '#f4f3f4'}
+          />
+        </View>
+
+        <View style={styles.sliderBlock}>
+          <View style={styles.sliderHeader}>
+            <Text style={styles.settingLabel}>Movement Sensitivity</Text>
+            <Text style={styles.sliderValue}>{Math.round(settings.adaptiveMovementSensitivity * 100)}%</Text>
+          </View>
+          <Slider
+            style={styles.slider}
+            minimumValue={0}
+            maximumValue={1}
+            step={0.05}
+            value={settings.adaptiveMovementSensitivity}
+            onValueChange={(value) => updateSettings({ adaptiveMovementSensitivity: value })}
+            minimumTrackTintColor="#6200ee"
+            maximumTrackTintColor="#ddd"
+            disabled={!settings.adaptiveModeEnabled}
+          />
+          <Text style={styles.settingDescription}>
+            Higher sensitivity pauses cues sooner when movement volatility spikes.
+          </Text>
+        </View>
+
+        <View style={styles.sliderBlock}>
+          <View style={styles.sliderHeader}>
+            <Text style={styles.settingLabel}>Heart Rate Sensitivity</Text>
+            <Text style={styles.sliderValue}>{Math.round(settings.adaptiveHRSensitivity * 100)}%</Text>
+          </View>
+          <Slider
+            style={styles.slider}
+            minimumValue={0}
+            maximumValue={1}
+            step={0.05}
+            value={settings.adaptiveHRSensitivity}
+            onValueChange={(value) => updateSettings({ adaptiveHRSensitivity: value })}
+            minimumTrackTintColor="#6200ee"
+            maximumTrackTintColor="#ddd"
+            disabled={!settings.adaptiveModeEnabled}
+          />
+          <Text style={styles.settingDescription}>
+            Controls how reactive the app is to HR variability before cues slow or pause.
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.section}>
         <Text style={styles.sectionTitle}>Appearance</Text>
         <View style={styles.settingRow}>
           <View style={styles.settingInfo}>
@@ -493,6 +555,27 @@ const styles = StyleSheet.create({
     padding: 8,
     width: 80,
     textAlign: 'center',
+  },
+  sliderBlock: {
+    backgroundColor: '#fff',
+    padding: 15,
+    borderRadius: 10,
+    marginTop: 10,
+    elevation: 2,
+  },
+  sliderHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 5,
+  },
+  slider: {
+    width: '100%',
+    height: 40,
+  },
+  sliderValue: {
+    fontWeight: '600',
+    color: '#333',
   },
   notice: {
     backgroundColor: '#fff3cd',
