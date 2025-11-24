@@ -68,7 +68,13 @@ class BackupService {
       throw new Error('Invalid passphrase or unreadable backup file.');
     }
 
-    const parsed = JSON.parse(decrypted) as BackupEnvelope;
+    let parsed: BackupEnvelope;
+
+    try {
+      parsed = JSON.parse(decrypted) as BackupEnvelope;
+    } catch (error) {
+      throw new Error('Backup file could not be parsed. Please check the file integrity.');
+    }
 
     if (!parsed?.data || !this.validateBackupData(parsed.data)) {
       throw new Error('Backup file is corrupted or missing required data.');
@@ -79,20 +85,19 @@ class BackupService {
   }
 
   private async buildBackupEnvelope(): Promise<BackupEnvelope> {
-    const [sessionsRaw, cuesRaw, cueSetsRaw, learningItemsRaw, memoryTestsRaw, settingsRaw] = await AsyncStorage.multiGet(
-      Object.values(STORAGE_KEYS)
-    );
+    const storageEntries = await AsyncStorage.multiGet(Object.values(STORAGE_KEYS));
+    const entryMap = this.indexEntries(storageEntries);
 
     const envelope: BackupEnvelope = {
       version: 1,
       createdAt: Date.now(),
       data: {
-        sessions: this.safeParse<SessionLog[]>(sessionsRaw?.[1], []),
-        cues: this.safeParse<AudioCue[]>(cuesRaw?.[1], []),
-        cueSets: this.safeParse<CueSet[]>(cueSetsRaw?.[1], []),
-        learningItems: this.safeParse<LearningItem[]>(learningItemsRaw?.[1], []),
-        memoryTests: this.safeParse<MemoryTest[]>(memoryTestsRaw?.[1], []),
-        settings: this.safeParse<AppSettings>(settingsRaw?.[1], DEFAULT_SETTINGS),
+        sessions: this.safeParse<SessionLog[]>(entryMap[STORAGE_KEYS.sessions], []),
+        cues: this.safeParse<AudioCue[]>(entryMap[STORAGE_KEYS.cues], []),
+        cueSets: this.safeParse<CueSet[]>(entryMap[STORAGE_KEYS.cueSets], []),
+        learningItems: this.safeParse<LearningItem[]>(entryMap[STORAGE_KEYS.learningItems], []),
+        memoryTests: this.safeParse<MemoryTest[]>(entryMap[STORAGE_KEYS.memoryTests], []),
+        settings: this.safeParse<AppSettings>(entryMap[STORAGE_KEYS.settings], DEFAULT_SETTINGS),
       },
     };
 
@@ -101,14 +106,15 @@ class BackupService {
 
   private async persistData(data: BackupData, strategy: BackupStrategy): Promise<void> {
     const existingEntries = await AsyncStorage.multiGet(Object.values(STORAGE_KEYS));
+    const entryMap = this.indexEntries(existingEntries);
 
     const existing: BackupData = {
-      sessions: this.safeParse<SessionLog[]>(existingEntries[0]?.[1], []),
-      cues: this.safeParse<AudioCue[]>(existingEntries[1]?.[1], []),
-      cueSets: this.safeParse<CueSet[]>(existingEntries[2]?.[1], []),
-      learningItems: this.safeParse<LearningItem[]>(existingEntries[3]?.[1], []),
-      memoryTests: this.safeParse<MemoryTest[]>(existingEntries[4]?.[1], []),
-      settings: this.safeParse<AppSettings>(existingEntries[5]?.[1], DEFAULT_SETTINGS),
+      sessions: this.safeParse<SessionLog[]>(entryMap[STORAGE_KEYS.sessions], []),
+      cues: this.safeParse<AudioCue[]>(entryMap[STORAGE_KEYS.cues], []),
+      cueSets: this.safeParse<CueSet[]>(entryMap[STORAGE_KEYS.cueSets], []),
+      learningItems: this.safeParse<LearningItem[]>(entryMap[STORAGE_KEYS.learningItems], []),
+      memoryTests: this.safeParse<MemoryTest[]>(entryMap[STORAGE_KEYS.memoryTests], []),
+      settings: this.safeParse<AppSettings>(entryMap[STORAGE_KEYS.settings], DEFAULT_SETTINGS),
     };
 
     const merged: BackupData = strategy === 'replace'
@@ -168,6 +174,13 @@ class BackupService {
       typeof settings.hrSpikeThreshold === 'number';
 
     return hasArrays && hasSettings;
+  }
+
+  private indexEntries(entries: [string, string | null][]): Record<string, string | null> {
+    return entries.reduce<Record<string, string | null>>((acc, [key, value]) => {
+      acc[key] = value;
+      return acc;
+    }, {});
   }
 }
 
