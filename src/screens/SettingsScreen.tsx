@@ -58,7 +58,8 @@ export const SettingsScreen: React.FC = () => {
       }
 
       // Start a session
-      const session = sessionEngine.startSession('Fast-forward demo session');
+      const sessionStartTime = Date.now();
+      const session = sessionEngine.startSession('Fast-forward demo session', sessionStartTime);
 
       // Simulate 8 hours of sleep in compressed time
       const stages = ['Awake', 'Light', 'Deep', 'Light', 'REM', 'Light', 'Deep', 'REM'];
@@ -84,14 +85,14 @@ export const SettingsScreen: React.FC = () => {
             sleepStage: stage,
           };
 
-          sessionEngine.logBiometrics(biometricData);
+          sessionEngine.logBiometrics(biometricData, currentTime);
 
           // Possibly play a cue
-          if (sessionEngine.isCueAllowed(biometricData) && Math.random() < 0.15) {
+          if (sessionEngine.isCueAllowed(biometricData, currentTime) && Math.random() < 0.15) {
             const enabledCues = cueManager.getEnabledCuesFromActiveSet();
             if (enabledCues.length > 0) {
               const randomCue = enabledCues[Math.floor(Math.random() * enabledCues.length)];
-              sessionEngine.playCue(randomCue.id, randomCue.name, stage);
+              sessionEngine.playCue(randomCue.id, randomCue.name, stage, currentTime);
             }
           }
 
@@ -100,7 +101,7 @@ export const SettingsScreen: React.FC = () => {
       }
 
       // End the session
-      await sessionEngine.endSession();
+      await sessionEngine.endSession(currentTime);
 
       setRunningDemo(false);
 
