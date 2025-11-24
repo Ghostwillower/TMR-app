@@ -214,6 +214,20 @@ export class BLEService {
     );
   }
 
+  async sendStopAudioCue(): Promise<void> {
+    if (!this.hub) {
+      throw new Error('Hub not connected');
+    }
+
+    const data = Buffer.from('STOP').toString('base64');
+    await this.manager.writeCharacteristicWithResponseForDevice(
+      this.hub.id,
+      HUB_SERVICE_UUID,
+      '00002a3a-0000-1000-8000-00805f9b34fb',
+      data
+    );
+  }
+
   isWristbandConnected(): boolean {
     return this.wristband !== null;
   }
