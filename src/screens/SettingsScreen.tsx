@@ -19,6 +19,20 @@ export const SettingsScreen: React.FC = () => {
   const { demoMode, settings, toggleDemoMode, toggleDarkMode, updateSettings, clearAllData } = useApp();
   const [runningDemo, setRunningDemo] = useState(false);
 
+  const handleModeChange = (value: boolean) => {
+    if (!value) {
+      Alert.alert(
+        'Real Mode Not Ready',
+        'A compatible biometric transport is required to leave Demo Mode. The app will stay in Demo Mode until hardware is connected.'
+      );
+      return;
+    }
+
+    if (!demoMode) {
+      toggleDemoMode();
+    }
+  };
+
   const handleClearData = () => {
     Alert.alert(
       'Clear All Data',
@@ -133,7 +147,7 @@ export const SettingsScreen: React.FC = () => {
           </View>
           <Switch
             value={demoMode}
-            onValueChange={toggleDemoMode}
+            onValueChange={handleModeChange}
             trackColor={{ false: '#767577', true: '#81b0ff' }}
             thumbColor={demoMode ? '#6200ee' : '#f4f3f4'}
           />

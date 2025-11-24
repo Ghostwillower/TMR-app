@@ -1,4 +1,5 @@
 // Biometric Source Interface - Abstraction for different biometric inputs
+import { Alert } from 'react-native';
 import { BiometricData } from '../utils/DemoBiometricSimulator';
 
 export interface BiometricSource {
@@ -45,7 +46,11 @@ export class RealBiometricSource implements BiometricSource {
   async start(): Promise<void> {
     // TODO: Implement BLE connection to wristband
     // This will connect to the wristband and start receiving biometric data
-    throw new Error('Real BLE integration not yet implemented');
+    Alert.alert(
+      'Real Biometric Source Unavailable',
+      'Connect to the hardware transport to stream live biometrics. Until then, the app will stay in Demo Mode.'
+    );
+    this.connected = false;
   }
 
   async stop(): Promise<void> {
