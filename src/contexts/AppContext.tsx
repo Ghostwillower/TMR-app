@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BiometricData } from '../utils/DemoBiometricSimulator';
-import { SessionLog, sessionEngine } from '../services/SessionEngine';
+import { AdaptiveState, SessionLog, sessionEngine } from '../services/SessionEngine';
 import { cueManager, AudioCue, CueSet } from '../services/CueManager';
 import { learningModule, LearningItem, MemoryTest } from '../services/LearningModule';
 import { BiometricSource, DemoBiometricSource, RealBiometricSource } from '../services/BiometricSource';
@@ -15,6 +15,9 @@ export interface AppSettings {
   minSecondsBetweenCues: number;
   movementThreshold: number;
   hrSpikeThreshold: number;
+  adaptiveModeEnabled: boolean;
+  adaptiveMovementSensitivity: number;
+  adaptiveHRSensitivity: number;
 }
 
 interface AppContextType {
@@ -22,6 +25,7 @@ interface AppContextType {
   demoMode: boolean;
   currentSession: SessionLog | null;
   currentBiometrics: BiometricData | null;
+  adaptiveState: AdaptiveState | null;
   settings: AppSettings;
   
   // Session Actions
@@ -58,11 +62,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     minSecondsBetweenCues: 120,
     movementThreshold: 30,
     hrSpikeThreshold: 20,
+    adaptiveModeEnabled: false,
+    adaptiveMovementSensitivity: 0.5,
+    adaptiveHRSensitivity: 0.5,
   };
 
   const [demoMode, setDemoMode] = useState(DEFAULT_SETTINGS.demoMode);
   const [currentSession, setCurrentSession] = useState<SessionLog | null>(null);
   const [currentBiometrics, setCurrentBiometrics] = useState<BiometricData | null>(null);
+  const [adaptiveState, setAdaptiveState] = useState<AdaptiveState | null>(null);
   const [cues, setCues] = useState<AudioCue[]>([]);
   const [cueSets, setCueSets] = useState<CueSet[]>([]);
   const [learningItems, setLearningItems] = useState<LearningItem[]>([]);
@@ -89,6 +97,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       minSecondsBetweenCues: settings.minSecondsBetweenCues,
       movementThreshold: settings.movementThreshold,
       hrSpikeThreshold: settings.hrSpikeThreshold,
+      adaptiveModeEnabled: settings.adaptiveModeEnabled,
+      adaptiveMovementSensitivity: settings.adaptiveMovementSensitivity,
+      adaptiveHRSensitivity: settings.adaptiveHRSensitivity,
     });
   }, [settings]);
 
@@ -151,12 +162,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const session = sessionEngine.startSession(notes);
     setCurrentSession(session);
+    setAdaptiveState({ ...sessionEngine.getAdaptiveState() });
 
     // Start biometric source
     if (biometricSourceRef.current) {
       biometricSourceRef.current.onData((data) => {
         setCurrentBiometrics(data);
         sessionEngine.logBiometrics(data);
+        setAdaptiveState({ ...sessionEngine.getAdaptiveState() });
 
         // Check if cue should be played
         if (sessionEngine.isCueAllowed(data)) {
@@ -213,6 +226,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     await sessionEngine.endSession();
     setCurrentSession(null);
     setCurrentBiometrics(null);
+    setAdaptiveState(null);
   };
 
   const refreshCues = async () => {
@@ -269,6 +283,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     demoMode,
     currentSession,
     currentBiometrics,
+    adaptiveState,
     settings,
     cues,
     cueSets,
