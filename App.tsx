@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Text } from 'react-native';
+import React, { useState, useEffect, ReactNode } from 'react';
+import { Text, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -11,11 +11,17 @@ import { LearningScreen } from './src/screens/LearningScreen';
 import { ReportsScreen } from './src/screens/ReportsScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
+import { BrandLogo } from './src/components/BrandLogo';
+import { theme } from './src/theme';
 
 const Tab = createBottomTabNavigator();
 
-const TabIcon: React.FC<{ icon: string }> = ({ icon }) => {
-  return <Text style={{ fontSize: 24 }}>{icon}</Text>;
+const TabIcon: React.FC<{ icon?: string; children?: ReactNode }> = ({ icon, children }) => {
+  return (
+    <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+      {children ?? <Text style={{ fontSize: 24 }}>{icon}</Text>}
+    </View>
+  );
 };
 
 export default function App() {
@@ -59,12 +65,16 @@ export default function App() {
         <Tab.Navigator
           screenOptions={{
             headerShown: false,
-            tabBarActiveTintColor: '#6200ee',
-            tabBarInactiveTintColor: '#999',
+            tabBarActiveTintColor: theme.colors.primary,
+            tabBarInactiveTintColor: theme.colors.muted,
+            tabBarLabelStyle: { fontWeight: '600', fontSize: 12 },
             tabBarStyle: {
-              paddingBottom: 5,
-              paddingTop: 5,
-              height: 60,
+              backgroundColor: theme.colors.surface,
+              paddingBottom: 8,
+              paddingTop: 8,
+              height: 68,
+              borderTopColor: theme.colors.border,
+              borderTopWidth: 1,
             },
           }}
         >
@@ -73,7 +83,11 @@ export default function App() {
             component={DashboardScreen}
             options={{
               tabBarLabel: 'Dashboard',
-              tabBarIcon: () => <TabIcon icon="🏠" />,
+              tabBarIcon: () => (
+                <TabIcon>
+                  <BrandLogo size={32} />
+                </TabIcon>
+              ),
             }}
           />
           <Tab.Screen
