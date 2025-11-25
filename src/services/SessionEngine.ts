@@ -2,12 +2,18 @@
 import { BiometricData } from '../utils/DemoBiometricSimulator';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+export interface SessionHardwareProvenance {
+  biometric: { mode: 'demo' | 'ble'; deviceId?: string | null; deviceName?: string | null };
+  cueOutput: { mode: 'phone' | 'hub'; deviceId?: string | null; deviceName?: string | null };
+}
+
 export interface SessionLog {
   id: string;
   startTime: number;
   endTime?: number;
   status: 'active' | 'paused' | 'completed';
   notes?: string;
+  hardware?: SessionHardwareProvenance;
   biometricLogs: BiometricData[];
   stageTimings: {
     Awake: number;
@@ -41,6 +47,7 @@ export class SessionEngine {
   private stageStartTime: number = 0;
   private currentStage: string = 'Awake';
   private lastCueTime: number = 0;
+  private lastBiometricTimestamp: number = 0;
 
   // Cue safety settings
   private minSecondsBetweenCues: number = 120;
@@ -64,12 +71,17 @@ export class SessionEngine {
     hrVolatility: 0,
   };
 
-  startSession(notes?: string, startTime: number = Date.now()): SessionLog {
+  startSession(
+    notes?: string,
+    startTime: number = Date.now(),
+    hardware?: SessionHardwareProvenance,
+  ): SessionLog {
     this.currentSession = {
       id: `session_${startTime}`,
       startTime,
       status: 'active',
       notes,
+      hardware,
       biometricLogs: [],
       stageTimings: {
         Awake: 0,
@@ -84,6 +96,7 @@ export class SessionEngine {
     this.stageStartTime = startTime;
     this.currentStage = 'Awake';
     this.lastCueTime = 0;
+    this.lastBiometricTimestamp = 0;
     this.movementWindow = [];
     this.hrWindow = [];
     this.adaptivePauseUntil = 0;
@@ -104,6 +117,7 @@ export class SessionEngine {
     if (!this.currentSession || this.currentSession.status !== 'active') return;
 
     const now = timestampOverride ?? data.timestamp ?? Date.now();
+    this.lastBiometricTimestamp = now;
 
     // Add to biometric logs
     this.currentSession.biometricLogs.push(data);
@@ -142,6 +156,11 @@ export class SessionEngine {
           'Cues paused due to elevated movement or heart rate variability',
         effectiveCooldown: this.getEffectiveCooldownSeconds(),
       };
+      return false;
+    }
+
+    // Rule 0: Require fresh data to avoid stale cue decisions
+    if (currentTime - this.lastBiometricTimestamp > 15000) {
       return false;
     }
 
