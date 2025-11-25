@@ -3,20 +3,51 @@ import { Alert, PermissionsAndroid, Platform } from 'react-native';
 import { BleManager, Device, Subscription } from 'react-native-ble-plx';
 import { BiometricData } from '../utils/DemoBiometricSimulator';
 
+export interface BiometricStatus {
+  connected: boolean;
+  scanning: boolean;
+  deviceId?: string | null;
+  deviceName?: string | null;
+  lastError?: string | null;
+  lastUpdated?: number | null;
+}
+
+export interface BiometricProvenance {
+  mode: 'demo' | 'ble';
+  transport: 'simulated' | 'ble-wristband';
+  deviceId?: string | null;
+  deviceName?: string | null;
+}
+
 export interface BiometricSource {
   start(): Promise<void>;
   stop(): Promise<void>;
   onData(callback: (data: BiometricData) => void): void;
   isConnected(): boolean;
+  getStatus?(): BiometricStatus;
+  onStatusChange?(callback: (status: BiometricStatus) => void): void;
+  getProvenance?(): BiometricProvenance;
 }
 
 export class DemoBiometricSource implements BiometricSource {
   private simulator: any = null;
   private callback: ((data: BiometricData) => void) | null = null;
+  private status: BiometricStatus = {
+    connected: false,
+    scanning: false,
+    lastUpdated: null,
+  };
+  private statusCallback: ((status: BiometricStatus) => void) | null = null;
 
   async start(): Promise<void> {
     const { DemoBiometricSimulator } = await import('../utils/DemoBiometricSimulator');
     this.simulator = new DemoBiometricSimulator((data: BiometricData) => {
+      this.status = {
+        ...this.status,
+        connected: true,
+        lastUpdated: Date.now(),
+      };
+      this.statusCallback?.(this.status);
       if (this.callback) {
         this.callback(data);
       }
@@ -28,6 +59,8 @@ export class DemoBiometricSource implements BiometricSource {
     if (this.simulator) {
       this.simulator.stop();
       this.simulator = null;
+      this.status = { connected: false, scanning: false, lastUpdated: null };
+      this.statusCallback?.(this.status);
     }
   }
 
@@ -37,6 +70,18 @@ export class DemoBiometricSource implements BiometricSource {
 
   isConnected(): boolean {
     return this.simulator !== null;
+  }
+
+  getStatus(): BiometricStatus {
+    return this.status;
+  }
+
+  onStatusChange(callback: (status: BiometricStatus) => void): void {
+    this.statusCallback = callback;
+  }
+
+  getProvenance(): BiometricProvenance {
+    return { mode: 'demo', transport: 'simulated' };
   }
 }
 
@@ -52,6 +97,8 @@ export class RealBiometricSource implements BiometricSource {
   private latestHeartRate: number = 0;
   private latestMovement: number = 0;
   private latestTemperature: number = 0;
+  private status: BiometricStatus = { connected: false, scanning: false, lastUpdated: null };
+  private statusCallback: ((status: BiometricStatus) => void) | null = null;
 
   private static HEART_RATE_SERVICE = '0000180d-0000-1000-8000-00805f9b34fb';
   private static HEART_RATE_CHARACTERISTIC = '00002a37-0000-1000-8000-00805f9b34fb';
@@ -69,10 +116,12 @@ export class RealBiometricSource implements BiometricSource {
     }
 
     if (!this.selectedDevice) {
+      this.updateStatus({ scanning: true, lastError: null });
       const device = await this.scanForDevices();
       if (!device) {
         Alert.alert('No devices found', 'We could not find any nearby wristbands. Please retry.');
         this.connected = false;
+        this.updateStatus({ connected: false, scanning: false, lastError: 'No devices found' });
         return;
       }
       this.selectedDevice = device;
@@ -82,6 +131,7 @@ export class RealBiometricSource implements BiometricSource {
       await this.connectToSelectedDevice();
     } catch (error: any) {
       this.connected = false;
+      this.updateStatus({ connected: false, scanning: false, lastError: error?.message ?? 'Connection failed' });
       Alert.alert('Connection failed', error?.message ?? 'Unable to connect to the wristband.');
     }
   }
@@ -105,6 +155,7 @@ export class RealBiometricSource implements BiometricSource {
 
     this.connectedDevice = null;
     this.connected = false;
+    this.updateStatus({ connected: false, scanning: false });
   }
 
   onData(callback: (data: BiometricData) => void): void {
@@ -113,6 +164,23 @@ export class RealBiometricSource implements BiometricSource {
 
   isConnected(): boolean {
     return this.connected;
+  }
+
+  getStatus(): BiometricStatus {
+    return this.status;
+  }
+
+  onStatusChange(callback: (status: BiometricStatus) => void): void {
+    this.statusCallback = callback;
+  }
+
+  getProvenance(): BiometricProvenance {
+    return {
+      mode: 'ble',
+      transport: 'ble-wristband',
+      deviceId: this.connectedDevice?.id ?? this.selectedDevice?.id,
+      deviceName: this.connectedDevice?.name ?? this.selectedDevice?.name,
+    };
   }
 
   async requestPermissions(): Promise<boolean> {
@@ -149,6 +217,7 @@ export class RealBiometricSource implements BiometricSource {
       this.scanSubscription = this.manager.startDeviceScan(null, null, (error, device) => {
         if (error) {
           console.warn('Scan error', error);
+          this.updateStatus({ scanning: false, lastError: error.message });
           this.stopScan();
           if (!resolved) {
             resolved = true;
@@ -191,6 +260,7 @@ export class RealBiometricSource implements BiometricSource {
       this.scanSubscription = null;
     }
     this.manager.stopDeviceScan();
+    this.updateStatus({ scanning: false });
   }
 
   private async connectToSelectedDevice(): Promise<void> {
@@ -204,18 +274,28 @@ export class RealBiometricSource implements BiometricSource {
       const device = await this.manager.connectToDevice(this.selectedDevice.id, { autoConnect: true });
       this.connectedDevice = await device.discoverAllServicesAndCharacteristics();
       this.connected = true;
+      this.updateStatus({ connected: true, scanning: false, deviceId: device.id, deviceName: device.name, lastError: null });
 
       this.connectionSubscription = device.onDisconnected(() => {
         this.connected = false;
         this.connectedDevice = null;
         this.connectionSubscription = null;
         this.stopStreaming();
-        Alert.alert('Wristband disconnected', 'The biometric wristband disconnected. Please reconnect.');
+        this.updateStatus({ connected: false, lastError: 'Device disconnected' });
+        Alert.alert('Wristband disconnected', 'The biometric wristband disconnected. Attempting to reconnect.');
+        setTimeout(() => {
+          if (this.selectedDevice) {
+            this.connectToSelectedDevice().catch((error) => {
+              console.warn('Reconnection failed', error);
+            });
+          }
+        }, 1200);
       });
 
       this.startStreaming(device);
     } catch (error) {
       this.connected = false;
+      this.updateStatus({ connected: false, scanning: false, lastError: error instanceof Error ? error.message : 'Connection failed' });
       throw error;
     }
   }
@@ -362,6 +442,8 @@ export class RealBiometricSource implements BiometricSource {
     const temperature = this.latestTemperature || 36.5;
     const sleepStage = this.deriveSleepStage(heartRate, movement);
 
+    this.updateStatus({ lastUpdated: Date.now(), connected: this.connected });
+
     this.callback({
       heartRate,
       movement,
@@ -376,5 +458,10 @@ export class RealBiometricSource implements BiometricSource {
     if (movement < 8 && heartRate < 58) return 'Deep';
     if (movement < 15) return 'REM';
     return 'Light';
+  }
+
+  private updateStatus(partial: Partial<BiometricStatus>): void {
+    this.status = { ...this.status, ...partial };
+    this.statusCallback?.(this.status);
   }
 }

@@ -21,7 +21,19 @@ import { cueManager } from '../services/CueManager';
 import { BiometricData } from '../utils/DemoBiometricSimulator';
 
 export const SettingsScreen: React.FC = () => {
-  const { demoMode, settings, toggleDemoMode, toggleDarkMode, updateSettings, clearAllData, exportBackup, importBackup } = useApp();
+  const {
+    demoMode,
+    settings,
+    setDemoMode,
+    toggleDarkMode,
+    updateSettings,
+    clearAllData,
+    exportBackup,
+    importBackup,
+    biometricStatus,
+    hubStatus,
+    reconnectHardware,
+  } = useApp();
   const [runningDemo, setRunningDemo] = useState(false);
   const [processingBackup, setProcessingBackup] = useState(false);
   const [passphrase, setPassphrase] = useState('');
@@ -29,6 +41,7 @@ export const SettingsScreen: React.FC = () => {
   const [passphraseModalVisible, setPassphraseModalVisible] = useState(false);
   const [selectedBackupUri, setSelectedBackupUri] = useState<string | null>(null);
   const [mergeImport, setMergeImport] = useState(true);
+  const [hardwareConnecting, setHardwareConnecting] = useState(false);
 
   const showToast = (message: string) => {
     if (Platform.OS === 'android') {
@@ -38,17 +51,38 @@ export const SettingsScreen: React.FC = () => {
     }
   };
 
-  const handleModeChange = (value: boolean) => {
-    if (!value) {
-      Alert.alert(
-        'Real Mode Not Ready',
-        'A compatible biometric transport is required to leave Demo Mode. The app will stay in Demo Mode until hardware is connected.'
-      );
-      return;
-    }
+  const formatStatus = (status?: { connected?: boolean; scanning?: boolean; deviceName?: string | null; lastError?: string | null }) => {
+    if (!status) return { text: 'Not initialized', color: '#757575' };
+    if ('scanning' in status && status.scanning) return { text: 'Scanning...', color: '#ff9800' };
+    if (status.connected) return { text: `Connected${status.deviceName ? ` (${status.deviceName})` : ''}`, color: '#4caf50' };
+    if (status.lastError) return { text: `Error: ${status.lastError}`, color: '#f44336' };
+    return { text: 'Disconnected', color: '#f44336' };
+  };
 
-    if (!demoMode) {
-      toggleDemoMode();
+  const renderStatusRow = (label: string, status?: { connected?: boolean; scanning?: boolean; deviceName?: string | null; lastError?: string | null; lastUpdated?: number | null }) => {
+    const formatted = formatStatus(status);
+    return (
+      <View style={styles.statusRow}>
+        <Text style={styles.statusLabel}>{label}</Text>
+        <Text style={[styles.statusValue, { color: formatted.color }]}>{formatted.text}</Text>
+      </View>
+    );
+  };
+
+  const handleModeChange = async (value: boolean) => {
+    setHardwareConnecting(true);
+    try {
+      await setDemoMode(value);
+      if (!value) {
+        await reconnectHardware();
+        showToast('Connecting to wristband and hub...');
+      } else {
+        showToast('Demo Mode enabled');
+      }
+    } catch (error) {
+      Alert.alert('Mode Switch Error', error instanceof Error ? error.message : 'Unable to change mode.');
+    } finally {
+      setHardwareConnecting(false);
     }
   };
 
@@ -141,7 +175,10 @@ export const SettingsScreen: React.FC = () => {
 
       // Start a session
       const sessionStartTime = Date.now();
-      const session = sessionEngine.startSession('Fast-forward demo session', sessionStartTime);
+      const session = sessionEngine.startSession('Fast-forward demo session', sessionStartTime, {
+        biometric: { mode: 'demo', deviceId: null, deviceName: 'Fast-forward simulator' },
+        cueOutput: { mode: 'phone', deviceId: null, deviceName: 'Local audio' },
+      });
 
       // Simulate 8 hours of sleep in compressed time
       const stages = ['Awake', 'Light', 'Deep', 'Light', 'REM', 'Light', 'Deep', 'REM'];
@@ -219,13 +256,36 @@ export const SettingsScreen: React.FC = () => {
             onValueChange={handleModeChange}
             trackColor={{ false: '#767577', true: '#81b0ff' }}
             thumbColor={demoMode ? '#6200ee' : '#f4f3f4'}
+            disabled={hardwareConnecting}
           />
         </View>
         {!demoMode && (
-          <View style={styles.notice}>
-            <Text style={styles.noticeText}>
-              ⚠️ Real Mode not yet implemented. BLE connectivity coming in Step 9.
-            </Text>
+          <View style={styles.statusCard}>
+            <Text style={styles.statusHeader}>Real Device Status</Text>
+            {renderStatusRow('Wristband', biometricStatus)}
+            {biometricStatus?.lastUpdated && (
+              <Text style={styles.statusSubtle}>
+                Last biometric sample: {new Date(biometricStatus.lastUpdated).toLocaleTimeString()}
+              </Text>
+            )}
+            {renderStatusRow('Wall Hub', hubStatus)}
+            {biometricStatus?.lastError && <Text style={styles.noticeText}>Biometric: {biometricStatus.lastError}</Text>}
+            {hubStatus?.lastError && <Text style={styles.noticeText}>Hub: {hubStatus.lastError}</Text>}
+            <TouchableOpacity
+              style={[styles.primaryButton, hardwareConnecting && styles.disabledButton]}
+              onPress={async () => {
+                setHardwareConnecting(true);
+                await reconnectHardware();
+                setHardwareConnecting(false);
+              }}
+              disabled={hardwareConnecting}
+            >
+              {hardwareConnecting ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.primaryButtonText}>Reconnect Devices</Text>
+              )}
+            </TouchableOpacity>
           </View>
         )}
         {demoMode && (
@@ -518,6 +578,38 @@ const styles = StyleSheet.create({
   section: {
     margin: 15,
   },
+  statusCard: {
+    backgroundColor: '#fff',
+    padding: 12,
+    borderRadius: 10,
+    marginTop: 10,
+  },
+  statusHeader: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+    color: '#333',
+  },
+  statusRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginVertical: 4,
+  },
+  statusLabel: {
+    fontSize: 14,
+    color: '#555',
+    fontWeight: '500',
+  },
+  statusValue: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  statusSubtle: {
+    fontSize: 12,
+    color: '#777',
+    marginBottom: 6,
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
@@ -661,6 +753,9 @@ const styles = StyleSheet.create({
     padding: 15,
     borderRadius: 10,
     alignItems: 'center',
+  },
+  disabledButton: {
+    opacity: 0.7,
   },
   dangerButtonText: {
     color: '#fff',

@@ -4,10 +4,28 @@ export interface CueOutput {
   playCue(cueId: string, cueName: string, volume: number): Promise<void>;
   stopCue(): Promise<void>;
   isAvailable(): boolean;
+  getStatus?(): OutputStatus;
+  onStatusChange?(callback: (status: OutputStatus) => void): void;
+  getProvenance?(): OutputProvenance;
+}
+
+export interface OutputStatus {
+  connected: boolean;
+  deviceId?: string | null;
+  deviceName?: string | null;
+  lastError?: string | null;
+}
+
+export interface OutputProvenance {
+  mode: 'phone' | 'hub';
+  deviceId?: string | null;
+  deviceName?: string | null;
 }
 
 export class PhoneSpeakerOutput implements CueOutput {
   private cueManager: any = null;
+  private status: OutputStatus = { connected: true };
+  private statusCallback: ((status: OutputStatus) => void) | null = null;
 
   constructor() {
     this.initializeCueManager();
@@ -40,6 +58,18 @@ export class PhoneSpeakerOutput implements CueOutput {
   isAvailable(): boolean {
     return true; // Phone speaker is always available
   }
+
+  getStatus(): OutputStatus {
+    return this.status;
+  }
+
+  onStatusChange(callback: (status: OutputStatus) => void): void {
+    this.statusCallback = callback;
+  }
+
+  getProvenance(): OutputProvenance {
+    return { mode: 'phone' };
+  }
 }
 
 export class HubOutput implements CueOutput {
@@ -47,6 +77,8 @@ export class HubOutput implements CueOutput {
   private hubId: string | null = null;
   private lastError: string | null = null;
   private fallbackOutput = new PhoneSpeakerOutput();
+  private status: OutputStatus = { connected: false, deviceId: null, deviceName: null, lastError: null };
+  private statusCallback: ((status: OutputStatus) => void) | null = null;
 
   constructor(hubId?: string) {
     this.hubId = hubId ?? null;
@@ -59,11 +91,13 @@ export class HubOutput implements CueOutput {
       try {
         const { bleService } = await import('./BLEService');
         await bleService.sendAudioCueTrigger(cueId);
+        this.updateStatus({ connected: true, lastError: null });
         return;
       } catch (error) {
         console.error('Error triggering cue on hub, falling back to phone:', error);
         this.connected = false;
         this.lastError = error instanceof Error ? error.message : String(error);
+        this.updateStatus({ connected: false, lastError: this.lastError });
       }
     }
 
@@ -76,11 +110,13 @@ export class HubOutput implements CueOutput {
       try {
         const { bleService } = await import('./BLEService');
         await bleService.sendStopAudioCue();
+        this.updateStatus({ connected: true });
         return;
       } catch (error) {
         console.error('Error stopping cue on hub, falling back to phone:', error);
         this.connected = false;
         this.lastError = error instanceof Error ? error.message : String(error);
+        this.updateStatus({ connected: false, lastError: this.lastError });
       }
     }
 
@@ -89,6 +125,18 @@ export class HubOutput implements CueOutput {
 
   isAvailable(): boolean {
     return this.connected;
+  }
+
+  getStatus(): OutputStatus {
+    return this.status;
+  }
+
+  onStatusChange(callback: (status: OutputStatus) => void): void {
+    this.statusCallback = callback;
+  }
+
+  getProvenance(): OutputProvenance {
+    return { mode: this.connected ? 'hub' : 'phone', deviceId: this.hubId, deviceName: this.status.deviceName };
   }
 
   async connectToHub(hubId?: string): Promise<void> {
@@ -104,9 +152,11 @@ export class HubOutput implements CueOutput {
       await bleService.connectToDevice(this.hubId, 'HUB');
       this.connected = bleService.isHubConnected();
       this.lastError = null;
+      this.updateStatus({ connected: this.connected, deviceId: this.hubId, deviceName: this.hubId, lastError: null });
     } catch (error) {
       this.connected = false;
       this.lastError = error instanceof Error ? error.message : String(error);
+      this.updateStatus({ connected: false, lastError: this.lastError });
       throw error;
     }
   }
@@ -124,6 +174,16 @@ export class HubOutput implements CueOutput {
 
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
+        if (!this.hubId) {
+          const discovered = await this.findHubCandidate();
+          if (discovered) {
+            this.hubId = discovered.id;
+            this.updateStatus({ deviceId: discovered.id, deviceName: discovered.name });
+          } else {
+            continue;
+          }
+        }
+
         await this.connectToHub();
         if (this.connected) return true;
       } catch (error) {
@@ -134,6 +194,35 @@ export class HubOutput implements CueOutput {
     }
 
     return false;
+  }
+
+  async ensureHubConnection(): Promise<boolean> {
+    return this.ensureConnection(2);
+  }
+
+  private updateStatus(partial: Partial<OutputStatus>): void {
+    this.status = { ...this.status, ...partial };
+    this.statusCallback?.(this.status);
+  }
+
+  private async findHubCandidate(): Promise<{ id: string; name: string } | null> {
+    const { bleService } = await import('./BLEService');
+    return new Promise((resolve) => {
+      let resolved = false;
+      bleService.scanForDevices((device) => {
+        if (device.type === 'HUB' && !resolved) {
+          resolved = true;
+          resolve({ id: device.id, name: device.name });
+        }
+      }, 4000);
+
+      setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          resolve(null);
+        }
+      }, 4200);
+    });
   }
 
   // Future methods for hub integration:

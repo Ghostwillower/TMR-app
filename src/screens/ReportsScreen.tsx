@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { LineChart } from 'react-native-chart-kit';
 import { Circle, G, Line, Text as SvgText } from 'react-native-svg';
-import { sessionEngine, SessionLog } from '../services/SessionEngine';
+import { sessionEngine, SessionHardwareProvenance, SessionLog } from '../services/SessionEngine';
 import { learningModule, MemoryBoostResult } from '../services/LearningModule';
 import {
   buildHideListForDots,
@@ -45,6 +45,14 @@ export const ReportsScreen: React.FC = () => {
   const loadSessions = async () => {
     const allSessions = await sessionEngine.getAllSessions();
     setSessions(allSessions.sort((a, b) => b.startTime - a.startTime));
+  };
+
+  const describeHardware = (hardware?: SessionHardwareProvenance['biometric' | 'cueOutput']) => {
+    if (!hardware) return 'Not recorded';
+    if (hardware.mode === 'demo') return 'Demo simulator';
+    if (hardware.mode === 'phone') return 'Phone speaker';
+    if (hardware.mode === 'hub') return `Wall hub${hardware.deviceName ? ` (${hardware.deviceName})` : ''}`;
+    return `BLE device${hardware.deviceName ? ` (${hardware.deviceName})` : ''}`;
   };
 
   const formatDate = (timestamp: number) => {
@@ -224,6 +232,14 @@ export const ReportsScreen: React.FC = () => {
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Status:</Text>
             <Text style={styles.detailValue}>{selectedSession.status}</Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Biometrics:</Text>
+            <Text style={styles.detailValue}>{describeHardware(selectedSession.hardware?.biometric)}</Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Cue Output:</Text>
+            <Text style={styles.detailValue}>{describeHardware(selectedSession.hardware?.cueOutput)}</Text>
           </View>
           {selectedSession.notes && (
             <View style={styles.detailRow}>

@@ -2,11 +2,11 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BiometricData } from '../utils/DemoBiometricSimulator';
-import { AdaptiveState, SessionLog, sessionEngine } from '../services/SessionEngine';
+import { AdaptiveState, SessionHardwareProvenance, SessionLog, sessionEngine } from '../services/SessionEngine';
 import { cueManager, AudioCue, CueSet } from '../services/CueManager';
 import { learningModule, LearningItem, MemoryTest } from '../services/LearningModule';
-import { BiometricSource, DemoBiometricSource, RealBiometricSource } from '../services/BiometricSource';
-import { CueOutput, PhoneSpeakerOutput, HubOutput } from '../services/CueOutput';
+import { BiometricSource, DemoBiometricSource, RealBiometricSource, BiometricStatus } from '../services/BiometricSource';
+import { CueOutput, PhoneSpeakerOutput, HubOutput, OutputStatus } from '../services/CueOutput';
 import { backupService } from '../services/BackupService';
 import type { BackupStrategy } from '../services/BackupService';
 
@@ -29,7 +29,9 @@ interface AppContextType {
   currentBiometrics: BiometricData | null;
   adaptiveState: AdaptiveState | null;
   settings: AppSettings;
-  
+  biometricStatus: BiometricStatus | null;
+  hubStatus: OutputStatus | null;
+
   // Session Actions
   startSession: (notes?: string) => Promise<void>;
   pauseSession: () => void;
@@ -44,11 +46,12 @@ interface AppContextType {
   // Learning Management
   learningItems: LearningItem[];
   refreshLearning: () => Promise<void>;
-  
+
   // Settings Actions
-  toggleDemoMode: () => void;
+  setDemoMode: (value: boolean) => Promise<void>;
   toggleDarkMode: () => void;
   updateSettings: (settings: Partial<AppSettings>) => void;
+  reconnectHardware: () => Promise<void>;
 
   // Backup & Restore
   exportBackup: (passphrase: string) => Promise<string>;
@@ -73,7 +76,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     adaptiveHRSensitivity: 0.5,
   };
 
-  const [demoMode, setDemoMode] = useState(DEFAULT_SETTINGS.demoMode);
+  const [demoMode, setDemoModeState] = useState(DEFAULT_SETTINGS.demoMode);
   const [currentSession, setCurrentSession] = useState<SessionLog | null>(null);
   const [currentBiometrics, setCurrentBiometrics] = useState<BiometricData | null>(null);
   const [adaptiveState, setAdaptiveState] = useState<AdaptiveState | null>(null);
@@ -82,9 +85,29 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [learningItems, setLearningItems] = useState<LearningItem[]>([]);
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [initialized, setInitialized] = useState(false);
+  const [biometricStatus, setBiometricStatus] = useState<BiometricStatus | null>(null);
+  const [hubStatus, setHubStatus] = useState<OutputStatus | null>(null);
 
   const biometricSourceRef = React.useRef<BiometricSource | null>(null);
   const cueOutputRef = React.useRef<CueOutput | null>(null);
+
+  const attachBiometricStatusListener = (source: BiometricSource | null) => {
+    if (!source || !source.onStatusChange) return;
+    source.onStatusChange((status) => setBiometricStatus({ ...status }));
+    const status = source.getStatus?.();
+    if (status) {
+      setBiometricStatus({ ...status });
+    }
+  };
+
+  const attachOutputStatusListener = (output: CueOutput | null) => {
+    if (!output || !output.onStatusChange) return;
+    output.onStatusChange((status) => setHubStatus({ ...status }));
+    const status = output.getStatus?.();
+    if (status) {
+      setHubStatus({ ...status });
+    }
+  };
 
   useEffect(() => {
     loadSettings();
@@ -126,20 +149,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const loadSettings = async () => {
     try {
       const storedSettings = await AsyncStorage.getItem('tmr_settings');
-      if (storedSettings) {
-        const parsedSettings = JSON.parse(storedSettings) as Partial<AppSettings>;
-        const mergedSettings = { ...DEFAULT_SETTINGS, ...parsedSettings } as AppSettings;
-        setSettings(mergedSettings);
-        setDemoMode(parsedSettings.demoMode ?? DEFAULT_SETTINGS.demoMode);
+        if (storedSettings) {
+          const parsedSettings = JSON.parse(storedSettings) as Partial<AppSettings>;
+          const mergedSettings = { ...DEFAULT_SETTINGS, ...parsedSettings } as AppSettings;
+          setSettings(mergedSettings);
+        setDemoModeState(parsedSettings.demoMode ?? DEFAULT_SETTINGS.demoMode);
+        }
+      } catch (error) {
+        console.error('Error loading settings:', error);
+        setSettings(DEFAULT_SETTINGS);
+      setDemoModeState(DEFAULT_SETTINGS.demoMode);
+      } finally {
+        setInitialized(true);
       }
-    } catch (error) {
-      console.error('Error loading settings:', error);
-      setSettings(DEFAULT_SETTINGS);
-      setDemoMode(DEFAULT_SETTINGS.demoMode);
-    } finally {
-      setInitialized(true);
-    }
-  };
+    };
 
   const initializeServices = async () => {
     await cueManager.initialize();
@@ -151,22 +174,79 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (demoMode) {
       biometricSourceRef.current = new DemoBiometricSource();
       cueOutputRef.current = new PhoneSpeakerOutput();
+      setHubStatus(cueOutputRef.current.getStatus?.() ?? { connected: true });
+      attachBiometricStatusListener(biometricSourceRef.current);
+      attachOutputStatusListener(cueOutputRef.current);
     } else {
       biometricSourceRef.current = new RealBiometricSource();
       cueOutputRef.current = new HubOutput();
+      attachBiometricStatusListener(biometricSourceRef.current);
+      attachOutputStatusListener(cueOutputRef.current);
     }
   };
 
-  const startSession = async (notes?: string) => {
-    if (!demoMode) {
-      Alert.alert(
-        'Real Mode Unavailable',
-        'Hardware streaming is not available yet. Please stay in Demo Mode until a real transport is connected.'
-      );
-      return;
+  const reconnectHardware = async () => {
+    if (biometricSourceRef.current instanceof RealBiometricSource) {
+      attachBiometricStatusListener(biometricSourceRef.current);
+      try {
+        await biometricSourceRef.current.start();
+      } catch (error) {
+        console.warn('Biometric reconnect failed', error);
+      }
+      const latest = biometricSourceRef.current.getStatus?.();
+      if (latest) setBiometricStatus({ ...latest });
+    } else if (biometricSourceRef.current) {
+      attachBiometricStatusListener(biometricSourceRef.current);
     }
 
-    const session = sessionEngine.startSession(notes);
+    if (cueOutputRef.current instanceof HubOutput) {
+      attachOutputStatusListener(cueOutputRef.current);
+      try {
+        await cueOutputRef.current.ensureHubConnection();
+      } catch (error) {
+        console.warn('Hub reconnect failed', error);
+      }
+      const latestHubStatus = cueOutputRef.current.getStatus?.();
+      if (latestHubStatus) setHubStatus({ ...latestHubStatus });
+    } else if (cueOutputRef.current) {
+      attachOutputStatusListener(cueOutputRef.current);
+      const fallbackStatus = cueOutputRef.current.getStatus?.();
+      if (fallbackStatus) setHubStatus({ ...fallbackStatus });
+    }
+  };
+
+  const buildSessionHardware = (): SessionHardwareProvenance => {
+    const biometricProvenance = biometricSourceRef.current?.getProvenance?.();
+    const outputProvenance = cueOutputRef.current?.getProvenance?.();
+
+    return {
+      biometric: {
+        mode: biometricProvenance?.mode ?? (demoMode ? 'demo' : 'ble'),
+        deviceId: biometricProvenance?.deviceId ?? null,
+        deviceName: biometricProvenance?.deviceName ?? null,
+      },
+      cueOutput: {
+        mode: outputProvenance?.mode ?? (demoMode ? 'phone' : 'hub'),
+        deviceId: outputProvenance?.deviceId ?? null,
+        deviceName: outputProvenance?.deviceName ?? null,
+      },
+    };
+  };
+
+  const startSession = async (notes?: string) => {
+    if (!biometricSourceRef.current || !cueOutputRef.current) {
+      await initializeServices();
+    }
+
+    if (!demoMode) {
+      await reconnectHardware();
+      if (!biometricSourceRef.current?.isConnected()) {
+        Alert.alert('Wristband not connected', 'Please pair a sleep wearable before starting a real session.');
+        return;
+      }
+    }
+
+    const session = sessionEngine.startSession(notes, Date.now(), buildSessionHardware());
     setCurrentSession(session);
     setAdaptiveState({ ...sessionEngine.getAdaptiveState() });
 
@@ -244,27 +324,30 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setLearningItems(learningModule.getAllItems());
   };
 
-  const toggleDemoMode = () => {
-    // Prevent switching into Real Mode until a true hardware transport exists
-    if (demoMode) {
-      Alert.alert(
-        'Real Mode Not Implemented',
-        'Connect to a supported biometric transport to leave Demo Mode. Until then, the app will remain in Demo Mode for safety.'
-      );
-      return;
+  const setDemoMode = async (value: boolean) => {
+    setSettings((prev) => ({ ...prev, demoMode: value }));
+    setDemoModeState(value);
+
+    if (biometricSourceRef.current) {
+      await biometricSourceRef.current.stop();
+    }
+    if (cueOutputRef.current) {
+      await cueOutputRef.current.stopCue();
     }
 
-    const newMode = !demoMode;
-    setDemoMode(newMode);
-    setSettings({ ...settings, demoMode: newMode });
-
-    // Reinitialize biometric source and cue output
-    if (newMode) {
+    if (value) {
       biometricSourceRef.current = new DemoBiometricSource();
       cueOutputRef.current = new PhoneSpeakerOutput();
+      attachBiometricStatusListener(biometricSourceRef.current);
+      attachOutputStatusListener(cueOutputRef.current);
+      setHubStatus(cueOutputRef.current.getStatus?.() ?? { connected: true });
     } else {
       biometricSourceRef.current = new RealBiometricSource();
       cueOutputRef.current = new HubOutput();
+      attachBiometricStatusListener(biometricSourceRef.current);
+      attachOutputStatusListener(cueOutputRef.current);
+      setHubStatus(cueOutputRef.current.getStatus?.() ?? null);
+      await reconnectHardware();
     }
   };
 
@@ -279,7 +362,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const applySettingsFromBackup = (incoming: AppSettings | undefined) => {
     const merged = { ...DEFAULT_SETTINGS, ...incoming } as AppSettings;
     setSettings(merged);
-    setDemoMode(merged.demoMode);
+    void setDemoMode(merged.demoMode);
   };
 
   const exportBackup = async (passphrase: string): Promise<string> => {
@@ -322,6 +405,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     currentBiometrics,
     adaptiveState,
     settings,
+    biometricStatus,
+    hubStatus,
     cues,
     cueSets,
     learningItems,
@@ -331,9 +416,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     stopSession,
     refreshCues,
     refreshLearning,
-    toggleDemoMode,
+    setDemoMode,
     toggleDarkMode,
     updateSettings,
+    reconnectHardware,
     exportBackup,
     importBackup,
     clearAllData,
