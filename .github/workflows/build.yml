@@ -24,6 +24,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -37,8 +39,8 @@ jobs:
       - name: Setup Expo
         uses: expo/expo-github-action@v8
         with:
-          expo-version: latest
-          eas-version: latest
+          expo-version: 6.x
+          eas-version: 16.x
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: Install dependencies
