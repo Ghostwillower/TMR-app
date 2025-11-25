@@ -8,9 +8,13 @@ import {
   Alert,
   Modal,
   TextInput,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
 import { cueManager } from '../services/CueManager';
+import { theme } from '../theme';
 
 export const CuesScreen: React.FC = () => {
   const { cues, cueSets, refreshCues } = useApp();
@@ -26,17 +30,23 @@ export const CuesScreen: React.FC = () => {
     refreshCues();
   }, []);
 
+  useEffect(() => {
+    if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+      UIManager.setLayoutAnimationEnabledExperimental(true);
+    }
+  }, []);
+
   const handleAddCue = async () => {
     if (!newCueName.trim()) {
       Alert.alert('Error', 'Please enter a name for the cue');
       return;
     }
 
-    // For demo, use a placeholder file path
     const filePath = `demo://cue_${Date.now()}.mp3`;
-    
+
     try {
       await cueManager.addCue(newCueName.trim(), filePath);
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       await refreshCues();
       setNewCueName('');
       setShowAddModal(false);
@@ -57,6 +67,7 @@ export const CuesScreen: React.FC = () => {
           style: 'destructive',
           onPress: async () => {
             await cueManager.deleteCue(cueId);
+            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
             await refreshCues();
           },
         },
@@ -66,6 +77,7 @@ export const CuesScreen: React.FC = () => {
 
   const handleToggleCue = async (cueId: string) => {
     await cueManager.toggleCueEnabled(cueId);
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     await refreshCues();
   };
 
@@ -91,6 +103,7 @@ export const CuesScreen: React.FC = () => {
 
     try {
       await cueManager.createCueSet(newSetName.trim(), selectedCues);
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       await refreshCues();
       setNewSetName('');
       setSelectedCues([]);
@@ -103,6 +116,7 @@ export const CuesScreen: React.FC = () => {
 
   const handleActivateSet = async (setId: string) => {
     await cueManager.setActiveCueSet(setId);
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     await refreshCues();
     Alert.alert('Success', 'Cue set activated for next session');
   };
@@ -116,6 +130,7 @@ export const CuesScreen: React.FC = () => {
   };
 
   const handleRenameCue = (cue: { id: string; name: string }) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setRenamingCue(cue);
     setNewCueName(cue.name);
     setShowRenameModal(true);
@@ -129,6 +144,7 @@ export const CuesScreen: React.FC = () => {
 
     try {
       await cueManager.renameCue(renamingCue.id, newCueName.trim());
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       await refreshCues();
       setShowRenameModal(false);
       setRenamingCue(null);
@@ -142,11 +158,11 @@ export const CuesScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Cue Manager</Text>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => setShowAddModal(true)}
-        >
+        <View>
+          <Text style={styles.title}>Cue Manager</Text>
+          <Text style={styles.subtitle}>Curate crisp audio for better recall</Text>
+        </View>
+        <TouchableOpacity style={styles.addButton} onPress={() => setShowAddModal(true)}>
           <Text style={styles.addButtonText}>+ Add Cue</Text>
         </TouchableOpacity>
       </View>
@@ -161,14 +177,14 @@ export const CuesScreen: React.FC = () => {
             <Text style={styles.createSetButtonText}>Create Set</Text>
           </TouchableOpacity>
         </View>
-        
+
         {cueSets.filter(s => s.isActive).map(set => (
           <View key={set.id} style={styles.activeSet}>
             <Text style={styles.activeSetName}>{set.name}</Text>
             <Text style={styles.activeSetCues}>{set.cueIds.length} cues</Text>
           </View>
         ))}
-        
+
         {cueSets.filter(s => !s.isActive).length > 0 && (
           <View style={styles.inactiveSets}>
             <Text style={styles.inactiveSetsTitle}>Other Sets:</Text>
@@ -255,7 +271,7 @@ export const CuesScreen: React.FC = () => {
             </Text>
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={styles.modalButton}
+                style={[styles.modalButton, styles.modalButtonAlt]}
                 onPress={() => setShowAddModal(false)}
               >
                 <Text style={styles.modalButtonText}>Cancel</Text>
@@ -301,7 +317,7 @@ export const CuesScreen: React.FC = () => {
             />
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={styles.modalButton}
+                style={[styles.modalButton, styles.modalButtonAlt]}
                 onPress={() => {
                   setShowSetModal(false);
                   setSelectedCues([]);
@@ -334,7 +350,7 @@ export const CuesScreen: React.FC = () => {
             />
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={styles.modalButton}
+                style={[styles.modalButton, styles.modalButtonAlt]}
                 onPress={() => {
                   setShowRenameModal(false);
                   setRenamingCue(null);
@@ -360,140 +376,168 @@ export const CuesScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: theme.colors.background,
+    padding: 16,
   },
   header: {
-    backgroundColor: '#6200ee',
-    padding: 20,
+    backgroundColor: theme.colors.surface,
+    padding: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    borderRadius: theme.radius.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    ...theme.shadow.card,
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  subtitle: {
+    color: theme.colors.muted,
+    marginTop: 4,
   },
   addButton: {
-    backgroundColor: '#fff',
-    paddingHorizontal: 15,
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 6,
+    borderRadius: theme.radius.md,
+    ...theme.shadow.card,
   },
   addButtonText: {
-    color: '#6200ee',
+    color: '#fff',
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   section: {
-    margin: 15,
+    marginTop: 16,
+    backgroundColor: theme.colors.surface,
+    padding: 16,
+    borderRadius: theme.radius.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    ...theme.shadow.card,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#0f172a',
   },
   createSetButton: {
-    backgroundColor: '#6200ee',
+    backgroundColor: theme.colors.info,
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
+    paddingVertical: 8,
+    borderRadius: theme.radius.md,
   },
   createSetButtonText: {
     color: '#fff',
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   activeSet: {
-    backgroundColor: '#e3f2fd',
-    padding: 15,
-    borderRadius: 8,
+    backgroundColor: '#eef2ff',
+    padding: 14,
+    borderRadius: theme.radius.md,
     marginBottom: 10,
   },
   activeSetName: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#1976d2',
+    color: theme.colors.primary,
   },
   activeSetCues: {
     fontSize: 14,
-    color: '#666',
+    color: theme.colors.muted,
     marginTop: 5,
   },
   inactiveSets: {
     marginTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+    paddingTop: 10,
   },
   inactiveSetsTitle: {
     fontSize: 14,
-    color: '#666',
-    marginBottom: 5,
+    color: theme.colors.muted,
+    marginBottom: 6,
   },
   inactiveSet: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.background,
     padding: 12,
-    borderRadius: 8,
-    marginBottom: 5,
+    borderRadius: theme.radius.md,
+    marginBottom: 8,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
   inactiveSetName: {
     fontSize: 14,
-    color: '#333',
+    color: '#0f172a',
   },
   activateText: {
     fontSize: 12,
-    color: '#6200ee',
+    color: theme.colors.primary,
   },
   emptyContainer: {
-    padding: 30,
+    padding: 24,
     alignItems: 'center',
   },
   emptyText: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#999',
+    fontWeight: '700',
+    color: '#0f172a',
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#999',
-    marginTop: 5,
+    color: theme.colors.muted,
+    marginTop: 6,
+    textAlign: 'center',
   },
   cueCard: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.surface,
     padding: 15,
-    borderRadius: 8,
+    borderRadius: theme.radius.lg,
     marginBottom: 10,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    ...theme.shadow.card,
   },
   cueInfo: {
     flex: 1,
   },
   cueName: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
+    fontWeight: '700',
+    color: '#0f172a',
   },
   cueStatus: {
     fontSize: 12,
-    color: '#666',
+    color: theme.colors.muted,
     marginTop: 5,
   },
   cueActions: {
     flexDirection: 'row',
-    gap: 10,
   },
   actionButton: {
     padding: 8,
+    marginLeft: 8,
+    backgroundColor: theme.colors.background,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
   actionButtonText: {
     fontSize: 18,
@@ -505,8 +549,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.lg,
     padding: 20,
     width: '85%',
     maxHeight: '80%',
@@ -515,25 +559,25 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 15,
-    color: '#333',
+    color: '#0f172a',
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.md,
     padding: 12,
     marginBottom: 15,
   },
   modalNote: {
     fontSize: 12,
-    color: '#666',
+    color: theme.colors.muted,
     marginBottom: 15,
     fontStyle: 'italic',
   },
   modalLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#333',
+    color: '#0f172a',
     marginBottom: 10,
   },
   cueList: {
@@ -546,15 +590,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: theme.colors.border,
   },
   selectableCueName: {
     fontSize: 14,
-    color: '#333',
+    color: '#0f172a',
   },
   checkbox: {
     fontSize: 18,
-    color: '#6200ee',
+    color: theme.colors.primary,
   },
   modalButtons: {
     flexDirection: 'row',
@@ -563,13 +607,17 @@ const styles = StyleSheet.create({
   modalButton: {
     flex: 1,
     padding: 15,
-    borderRadius: 8,
+    borderRadius: theme.radius.md,
     alignItems: 'center',
     marginHorizontal: 5,
-    backgroundColor: '#999',
+  },
+  modalButtonAlt: {
+    backgroundColor: theme.colors.background,
+    borderColor: theme.colors.border,
+    borderWidth: 1,
   },
   modalButtonPrimary: {
-    backgroundColor: '#6200ee',
+    backgroundColor: theme.colors.primary,
   },
   modalButtonText: {
     color: '#fff',

@@ -9,6 +9,7 @@ import {
   Modal,
 } from 'react-native';
 import { useApp } from '../contexts/AppContext';
+import { theme } from '../theme';
 
 export const SessionScreen: React.FC = () => {
   const {
@@ -295,23 +296,24 @@ export const SessionScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: theme.colors.background,
   },
   header: {
-    backgroundColor: '#6200ee',
-    padding: 20,
+    backgroundColor: theme.colors.surface,
+    padding: 24,
     alignItems: 'center',
+    borderBottomColor: theme.colors.border,
+    borderBottomWidth: 1,
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#0f172a',
   },
   headerSubtext: {
     fontSize: 16,
-    color: '#fff',
+    color: theme.colors.muted,
     marginTop: 5,
-    opacity: 0.9,
   },
   emptyContainer: {
     flex: 1,
@@ -331,26 +333,27 @@ const styles = StyleSheet.create({
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#666',
+    color: theme.colors.muted,
     textAlign: 'center',
     marginBottom: 30,
   },
   demoNotice: {
-    backgroundColor: '#e3f2fd',
+    backgroundColor: '#eef2ff',
     padding: 15,
-    borderRadius: 8,
+    borderRadius: theme.radius.md,
     marginBottom: 20,
   },
   demoNoticeText: {
     fontSize: 14,
-    color: '#1976d2',
+    color: theme.colors.primary,
     textAlign: 'center',
   },
   startButton: {
-    backgroundColor: '#6200ee',
+    backgroundColor: theme.colors.primary,
     paddingHorizontal: 40,
     paddingVertical: 15,
-    borderRadius: 10,
+    borderRadius: theme.radius.lg,
+    ...theme.shadow.card,
   },
   startButtonText: {
     color: '#fff',
@@ -358,16 +361,18 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   stageCard: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.surface,
     margin: 15,
     padding: 20,
-    borderRadius: 10,
+    borderRadius: theme.radius.lg,
     alignItems: 'center',
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    ...theme.shadow.card,
   },
   stageLabel: {
     fontSize: 14,
-    color: '#666',
+    color: theme.colors.muted,
     marginBottom: 10,
   },
   stageBadge: {
@@ -381,17 +386,19 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   biometricsCard: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.surface,
     margin: 15,
     padding: 20,
-    borderRadius: 10,
-    elevation: 3,
+    borderRadius: theme.radius.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    ...theme.shadow.card,
   },
   cardTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 15,
-    color: '#333',
+    color: '#0f172a',
   },
   biometricRow: {
     flexDirection: 'row',
@@ -402,22 +409,24 @@ const styles = StyleSheet.create({
   },
   biometricLabel: {
     fontSize: 16,
-    color: '#666',
+    color: theme.colors.muted,
   },
   biometricValue: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: '#0f172a',
   },
   warningText: {
-    color: '#d32f2f',
+    color: theme.colors.danger,
   },
   summaryCard: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.surface,
     margin: 15,
     padding: 20,
-    borderRadius: 10,
-    elevation: 3,
+    borderRadius: theme.radius.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    ...theme.shadow.card,
   },
   summaryRow: {
     flexDirection: 'row',
@@ -428,25 +437,27 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: 14,
-    color: '#666',
+    color: theme.colors.muted,
   },
   summaryValue: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#333',
+    color: '#0f172a',
   },
   highlightRow: {
-    backgroundColor: '#e3f2fd',
+    backgroundColor: '#eef2ff',
     paddingHorizontal: 10,
-    borderRadius: 5,
+    borderRadius: theme.radius.md,
     marginVertical: 5,
   },
   controlsCard: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.colors.surface,
     margin: 15,
     padding: 20,
-    borderRadius: 10,
-    elevation: 3,
+    borderRadius: theme.radius.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    ...theme.shadow.card,
   },
   buttonRow: {
     flexDirection: 'row',
@@ -454,25 +465,25 @@ const styles = StyleSheet.create({
   },
   pauseButton: {
     flex: 1,
-    backgroundColor: '#ff9800',
+    backgroundColor: theme.colors.warning,
     padding: 15,
-    borderRadius: 8,
+    borderRadius: theme.radius.md,
     marginRight: 10,
     alignItems: 'center',
   },
   resumeButton: {
     flex: 1,
-    backgroundColor: '#4caf50',
+    backgroundColor: theme.colors.success,
     padding: 15,
-    borderRadius: 8,
+    borderRadius: theme.radius.md,
     marginRight: 10,
     alignItems: 'center',
   },
   stopButton: {
     flex: 1,
-    backgroundColor: '#d32f2f',
+    backgroundColor: theme.colors.danger,
     padding: 15,
-    borderRadius: 8,
+    borderRadius: theme.radius.md,
     alignItems: 'center',
   },
   buttonText: {
@@ -487,8 +498,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radius.lg,
     padding: 20,
     width: '85%',
   },
@@ -500,8 +511,8 @@ const styles = StyleSheet.create({
   },
   notesInput: {
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radius.md,
     padding: 12,
     marginBottom: 15,
     minHeight: 100,
@@ -514,13 +525,13 @@ const styles = StyleSheet.create({
   modalButton: {
     flex: 1,
     padding: 15,
-    borderRadius: 8,
+    borderRadius: theme.radius.md,
     alignItems: 'center',
     marginHorizontal: 5,
-    backgroundColor: '#999',
+    backgroundColor: theme.colors.muted,
   },
   modalButtonPrimary: {
-    backgroundColor: '#6200ee',
+    backgroundColor: theme.colors.primary,
   },
   modalButtonText: {
     color: '#fff',
