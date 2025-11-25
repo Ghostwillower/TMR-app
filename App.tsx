@@ -1,6 +1,10 @@
-import React, { useState, useEffect, ReactNode } from 'react';
+import React, { useState, useEffect, ReactNode, useMemo } from 'react';
 import { Text, View } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import {
+  NavigationContainer,
+  DarkTheme as NavigationDarkTheme,
+  DefaultTheme as NavigationDefaultTheme,
+} from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppProvider } from './src/contexts/AppContext';
@@ -12,7 +16,7 @@ import { ReportsScreen } from './src/screens/ReportsScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { BrandLogo } from './src/components/BrandLogo';
-import { theme } from './src/theme';
+import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 
 const Tab = createBottomTabNavigator();
 
@@ -21,6 +25,99 @@ const TabIcon: React.FC<{ icon?: string; children?: ReactNode }> = ({ icon, chil
     <View style={{ alignItems: 'center', justifyContent: 'center' }}>
       {children ?? <Text style={{ fontSize: 24 }}>{icon}</Text>}
     </View>
+  );
+};
+
+const AppNavigation = () => {
+  const { theme, mode } = useTheme();
+
+  const navigationTheme = useMemo(
+    () => ({
+      ...(mode === 'dark' ? NavigationDarkTheme : NavigationDefaultTheme),
+      colors: {
+        ...(mode === 'dark' ? NavigationDarkTheme.colors : NavigationDefaultTheme.colors),
+        background: theme.colors.background,
+        card: theme.colors.surface,
+        text: theme.colors.text,
+        primary: theme.colors.primary,
+        border: theme.colors.border,
+      },
+    }),
+    [mode, theme]
+  );
+
+  return (
+    <NavigationContainer theme={navigationTheme}>
+      <Tab.Navigator
+        screenOptions={{
+          headerShown: false,
+          tabBarActiveTintColor: theme.colors.primary,
+          tabBarInactiveTintColor: theme.colors.muted,
+          tabBarLabelStyle: { fontWeight: '600', fontSize: 12 },
+          tabBarStyle: {
+            backgroundColor: theme.colors.surface,
+            paddingBottom: 8,
+            paddingTop: 8,
+            height: 68,
+            borderTopColor: theme.colors.border,
+            borderTopWidth: 1,
+          },
+        }}
+      >
+        <Tab.Screen
+          name="Dashboard"
+          component={DashboardScreen}
+          options={{
+            tabBarLabel: 'Dashboard',
+            tabBarIcon: () => (
+              <TabIcon>
+                <BrandLogo size={32} />
+              </TabIcon>
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="Session"
+          component={SessionScreen}
+          options={{
+            tabBarLabel: 'Session',
+            tabBarIcon: () => <TabIcon icon="🌙" />,
+          }}
+        />
+        <Tab.Screen
+          name="Cues"
+          component={CuesScreen}
+          options={{
+            tabBarLabel: 'Cues',
+            tabBarIcon: () => <TabIcon icon="🎵" />,
+          }}
+        />
+        <Tab.Screen
+          name="Learning"
+          component={LearningScreen}
+          options={{
+            tabBarLabel: 'Learning',
+            tabBarIcon: () => <TabIcon icon="📚" />,
+          }}
+        />
+        <Tab.Screen
+          name="Reports"
+          component={ReportsScreen}
+          options={{
+            tabBarLabel: 'Reports',
+            tabBarIcon: () => <TabIcon icon="📊" />,
+          }}
+        />
+        <Tab.Screen
+          name="Settings"
+          component={SettingsScreen}
+          options={{
+            tabBarLabel: 'Settings',
+            tabBarIcon: () => <TabIcon icon="⚙️" />,
+          }}
+        />
+      </Tab.Navigator>
+    </NavigationContainer>
   );
 };
 
@@ -61,77 +158,9 @@ export default function App() {
   }
   return (
     <AppProvider>
-      <NavigationContainer>
-        <Tab.Navigator
-          screenOptions={{
-            headerShown: false,
-            tabBarActiveTintColor: theme.colors.primary,
-            tabBarInactiveTintColor: theme.colors.muted,
-            tabBarLabelStyle: { fontWeight: '600', fontSize: 12 },
-            tabBarStyle: {
-              backgroundColor: theme.colors.surface,
-              paddingBottom: 8,
-              paddingTop: 8,
-              height: 68,
-              borderTopColor: theme.colors.border,
-              borderTopWidth: 1,
-            },
-          }}
-        >
-          <Tab.Screen
-            name="Dashboard"
-            component={DashboardScreen}
-            options={{
-              tabBarLabel: 'Dashboard',
-              tabBarIcon: () => (
-                <TabIcon>
-                  <BrandLogo size={32} />
-                </TabIcon>
-              ),
-            }}
-          />
-          <Tab.Screen
-            name="Session"
-            component={SessionScreen}
-            options={{
-              tabBarLabel: 'Session',
-              tabBarIcon: () => <TabIcon icon="🌙" />,
-            }}
-          />
-          <Tab.Screen
-            name="Cues"
-            component={CuesScreen}
-            options={{
-              tabBarLabel: 'Cues',
-              tabBarIcon: () => <TabIcon icon="🎵" />,
-            }}
-          />
-          <Tab.Screen
-            name="Learning"
-            component={LearningScreen}
-            options={{
-              tabBarLabel: 'Learning',
-              tabBarIcon: () => <TabIcon icon="📚" />,
-            }}
-          />
-          <Tab.Screen
-            name="Reports"
-            component={ReportsScreen}
-            options={{
-              tabBarLabel: 'Reports',
-              tabBarIcon: () => <TabIcon icon="📊" />,
-            }}
-          />
-          <Tab.Screen
-            name="Settings"
-            component={SettingsScreen}
-            options={{
-              tabBarLabel: 'Settings',
-              tabBarIcon: () => <TabIcon icon="⚙️" />,
-            }}
-          />
-        </Tab.Navigator>
-      </NavigationContainer>
+      <ThemeProvider>
+        <AppNavigation />
+      </ThemeProvider>
     </AppProvider>
   );
 }
