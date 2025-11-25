@@ -52,15 +52,30 @@ jobs:
       - name: Generate native Android project
         run: npx expo prebuild --platform android --clean
 
-      - name: Build Debug APK
+      - name: Build APK (Preview - Debug)
+        if: ${{ github.event.inputs.profile == 'preview' }}
         working-directory: android
         run: ./gradlew assembleDebug
 
-      - name: Upload APK artifact
+      - name: Build APK (Production - Release)
+        if: ${{ github.event.inputs.profile == 'production' }}
+        working-directory: android
+        run: ./gradlew assembleRelease
+
+      - name: Upload Debug APK artifact
+        if: ${{ github.event.inputs.profile == 'preview' }}
         uses: actions/upload-artifact@v4
         with:
           name: tmr-app-debug
           path: android/app/build/outputs/apk/debug/*.apk
+          retention-days: 30
+
+      - name: Upload Release APK artifact
+        if: ${{ github.event.inputs.profile == 'production' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: tmr-app-release
+          path: android/app/build/outputs/apk/release/*.apk
           retention-days: 30
 
   build-ios:
@@ -81,7 +96,7 @@ jobs:
       - name: Setup Expo
         uses: expo/expo-github-action@v8
         with:
-          eas-version: latest
+          eas-version: 17.x
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: Install dependencies
