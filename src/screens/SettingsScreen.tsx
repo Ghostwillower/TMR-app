@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,8 @@ import { useApp } from '../contexts/AppContext';
 import { sessionEngine } from '../services/SessionEngine';
 import { cueManager } from '../services/CueManager';
 import { BiometricData } from '../utils/DemoBiometricSimulator';
+import { useTheme } from '../contexts/ThemeContext';
+import { Theme } from '../theme';
 
 export const SettingsScreen: React.FC = () => {
   const {
@@ -34,6 +36,7 @@ export const SettingsScreen: React.FC = () => {
     hubStatus,
     reconnectHardware,
   } = useApp();
+  const { theme, setMode } = useTheme();
   const [runningDemo, setRunningDemo] = useState(false);
   const [processingBackup, setProcessingBackup] = useState(false);
   const [passphrase, setPassphrase] = useState('');
@@ -42,6 +45,7 @@ export const SettingsScreen: React.FC = () => {
   const [selectedBackupUri, setSelectedBackupUri] = useState<string | null>(null);
   const [mergeImport, setMergeImport] = useState(true);
   const [hardwareConnecting, setHardwareConnecting] = useState(false);
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const showToast = (message: string) => {
     if (Platform.OS === 'android') {
@@ -52,11 +56,11 @@ export const SettingsScreen: React.FC = () => {
   };
 
   const formatStatus = (status?: { connected?: boolean; scanning?: boolean; deviceName?: string | null; lastError?: string | null }) => {
-    if (!status) return { text: 'Not initialized', color: '#757575' };
-    if ('scanning' in status && status.scanning) return { text: 'Scanning...', color: '#ff9800' };
-    if (status.connected) return { text: `Connected${status.deviceName ? ` (${status.deviceName})` : ''}`, color: '#4caf50' };
-    if (status.lastError) return { text: `Error: ${status.lastError}`, color: '#f44336' };
-    return { text: 'Disconnected', color: '#f44336' };
+    if (!status) return { text: 'Not initialized', color: theme.colors.muted };
+    if ('scanning' in status && status.scanning) return { text: 'Scanning...', color: theme.colors.info };
+    if (status.connected) return { text: `Connected${status.deviceName ? ` (${status.deviceName})` : ''}`, color: theme.colors.success };
+    if (status.lastError) return { text: `Error: ${status.lastError}`, color: theme.colors.danger };
+    return { text: 'Disconnected', color: theme.colors.danger };
   };
 
   const renderStatusRow = (label: string, status?: { connected?: boolean; scanning?: boolean; deviceName?: string | null; lastError?: string | null; lastUpdated?: number | null }) => {
@@ -254,8 +258,8 @@ export const SettingsScreen: React.FC = () => {
           <Switch
             value={demoMode}
             onValueChange={handleModeChange}
-            trackColor={{ false: '#767577', true: '#81b0ff' }}
-            thumbColor={demoMode ? '#6200ee' : '#f4f3f4'}
+            trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
+            thumbColor={demoMode ? theme.colors.onPrimary : theme.colors.surface}
             disabled={hardwareConnecting}
           />
         </View>
@@ -281,7 +285,7 @@ export const SettingsScreen: React.FC = () => {
               disabled={hardwareConnecting}
             >
               {hardwareConnecting ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color={theme.colors.onPrimary} />
               ) : (
                 <Text style={styles.primaryButtonText}>Reconnect Devices</Text>
               )}
@@ -295,7 +299,7 @@ export const SettingsScreen: React.FC = () => {
             disabled={runningDemo}
           >
             {runningDemo ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={theme.colors.onPrimary} />
             ) : (
               <Text style={styles.demoButtonText}>
                 ⚡ Run 5-Minute Demo Night
@@ -374,8 +378,8 @@ export const SettingsScreen: React.FC = () => {
           <Switch
             value={settings.adaptiveModeEnabled}
             onValueChange={(value) => updateSettings({ adaptiveModeEnabled: value })}
-            trackColor={{ false: '#767577', true: '#81b0ff' }}
-            thumbColor={settings.adaptiveModeEnabled ? '#6200ee' : '#f4f3f4'}
+            trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
+            thumbColor={settings.adaptiveModeEnabled ? theme.colors.onPrimary : theme.colors.surface}
           />
         </View>
 
@@ -391,8 +395,8 @@ export const SettingsScreen: React.FC = () => {
             step={0.05}
             value={settings.adaptiveMovementSensitivity}
             onValueChange={(value) => updateSettings({ adaptiveMovementSensitivity: value })}
-            minimumTrackTintColor="#6200ee"
-            maximumTrackTintColor="#ddd"
+            minimumTrackTintColor={theme.colors.primary}
+            maximumTrackTintColor={theme.colors.border}
             disabled={!settings.adaptiveModeEnabled}
           />
           <Text style={styles.settingDescription}>
@@ -412,8 +416,8 @@ export const SettingsScreen: React.FC = () => {
             step={0.05}
             value={settings.adaptiveHRSensitivity}
             onValueChange={(value) => updateSettings({ adaptiveHRSensitivity: value })}
-            minimumTrackTintColor="#6200ee"
-            maximumTrackTintColor="#ddd"
+            minimumTrackTintColor={theme.colors.primary}
+            maximumTrackTintColor={theme.colors.border}
             disabled={!settings.adaptiveModeEnabled}
           />
           <Text style={styles.settingDescription}>
@@ -428,15 +432,14 @@ export const SettingsScreen: React.FC = () => {
           <View style={styles.settingInfo}>
             <Text style={styles.settingLabel}>Dark Mode</Text>
             <Text style={styles.settingDescription}>
-              Use dark theme (coming soon)
+              Switch between light and dark themes
             </Text>
           </View>
           <Switch
             value={settings.darkMode}
-            onValueChange={toggleDarkMode}
-            trackColor={{ false: '#767577', true: '#81b0ff' }}
-            thumbColor={settings.darkMode ? '#6200ee' : '#f4f3f4'}
-            disabled={true}
+            onValueChange={() => setMode(settings.darkMode ? 'light' : 'dark')}
+            trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
+            thumbColor={settings.darkMode ? theme.colors.onPrimary : theme.colors.surface}
           />
         </View>
       </View>
@@ -487,7 +490,7 @@ export const SettingsScreen: React.FC = () => {
           disabled={processingBackup}
         >
           {processingBackup && passphraseAction === 'export' ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={theme.colors.onPrimary} />
           ) : (
             <Text style={styles.primaryButtonText}>Export Backup</Text>
           )}
@@ -498,7 +501,7 @@ export const SettingsScreen: React.FC = () => {
           disabled={processingBackup}
         >
           {processingBackup && passphraseAction === 'import' ? (
-            <ActivityIndicator color="#6200ee" />
+            <ActivityIndicator color={theme.colors.primary} />
           ) : (
             <Text style={styles.secondaryButtonText}>Import Backup</Text>
           )}
@@ -561,253 +564,268 @@ export const SettingsScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  header: {
-    backgroundColor: '#6200ee',
-    padding: 20,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  section: {
-    margin: 15,
-  },
-  statusCard: {
-    backgroundColor: '#fff',
-    padding: 12,
-    borderRadius: 10,
-    marginTop: 10,
-  },
-  statusHeader: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
-    color: '#333',
-  },
-  statusRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginVertical: 4,
-  },
-  statusLabel: {
-    fontSize: 14,
-    color: '#555',
-    fontWeight: '500',
-  },
-  statusValue: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  statusSubtle: {
-    fontSize: 12,
-    color: '#777',
-    marginBottom: 6,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    color: '#333',
-  },
-  settingRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    padding: 15,
-    borderRadius: 10,
-    marginBottom: 10,
-    elevation: 2,
-  },
-  settingInfo: {
-    flex: 1,
-    marginRight: 15,
-  },
-  settingLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-  },
-  settingDescription: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 5,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 8,
-    width: 80,
-    textAlign: 'center',
-  },
-  sliderBlock: {
-    backgroundColor: '#fff',
-    padding: 15,
-    borderRadius: 10,
-    marginTop: 10,
-    elevation: 2,
-  },
-  sliderHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 5,
-  },
-  slider: {
-    width: '100%',
-    height: 40,
-  },
-  sliderValue: {
-    fontWeight: '600',
-    color: '#333',
-  },
-  notice: {
-    backgroundColor: '#fff3cd',
-    padding: 15,
-    borderRadius: 8,
-    marginTop: 10,
-  },
-  noticeText: {
-    fontSize: 14,
-    color: '#856404',
-  },
-  demoButton: {
-    backgroundColor: '#2196f3',
-    padding: 15,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  demoButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  infoCard: {
-    backgroundColor: '#fff',
-    padding: 20,
-    borderRadius: 10,
-    elevation: 2,
-  },
-  infoText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 5,
-  },
-  versionText: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 15,
-  },
-  descriptionText: {
-    fontSize: 14,
-    color: '#666',
-    lineHeight: 20,
-  },
-  progressCard: {
-    backgroundColor: '#fff',
-    padding: 20,
-    borderRadius: 10,
-    elevation: 2,
-  },
-  progressItem: {
-    fontSize: 14,
-    color: '#333',
-    marginVertical: 5,
-  },
-  primaryButton: {
-    backgroundColor: '#6200ee',
-    padding: 15,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  primaryButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  secondaryButton: {
-    backgroundColor: '#e8e8ff',
-    padding: 15,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  secondaryButtonText: {
-    color: '#6200ee',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  dangerButton: {
-    backgroundColor: '#d32f2f',
-    padding: 15,
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  disabledButton: {
-    opacity: 0.7,
-  },
-  dangerButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  footer: {
-    padding: 20,
-    alignItems: 'center',
-  },
-  footerText: {
-    fontSize: 12,
-    color: '#999',
-    textAlign: 'center',
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 20,
-    width: '100%',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    color: '#333',
-  },
-  modalDescription: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 15,
-  },
-  modalInput: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 15,
-  },
-  modalActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  modalActionButton: {
-    flex: 1,
-    marginHorizontal: 5,
-  },
-});
+const createStyles = (theme: Theme) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+    },
+    header: {
+      backgroundColor: theme.colors.primary,
+      padding: 20,
+    },
+    title: {
+      fontSize: 24,
+      fontWeight: 'bold',
+      color: theme.colors.onPrimary,
+    },
+    section: {
+      margin: 15,
+    },
+    statusCard: {
+      backgroundColor: theme.colors.surface,
+      padding: 12,
+      borderRadius: 10,
+      marginTop: 10,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    statusHeader: {
+      fontSize: 16,
+      fontWeight: '600',
+      marginBottom: 4,
+      color: theme.colors.text,
+    },
+    statusRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginVertical: 4,
+    },
+    statusLabel: {
+      fontSize: 14,
+      color: theme.colors.subtext,
+      fontWeight: '500',
+    },
+    statusValue: {
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    statusSubtle: {
+      fontSize: 12,
+      color: theme.colors.muted,
+      marginBottom: 6,
+    },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      marginBottom: 10,
+      color: theme.colors.text,
+    },
+    settingRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      backgroundColor: theme.colors.surface,
+      padding: 15,
+      borderRadius: 10,
+      marginBottom: 10,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    settingInfo: {
+      flex: 1,
+      marginRight: 15,
+    },
+    settingLabel: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: theme.colors.text,
+    },
+    settingDescription: {
+      fontSize: 14,
+      color: theme.colors.subtext,
+      marginTop: 5,
+    },
+    input: {
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      borderRadius: 8,
+      padding: 8,
+      width: 80,
+      textAlign: 'center',
+      color: theme.colors.text,
+      backgroundColor: theme.colors.surface,
+    },
+    sliderBlock: {
+      backgroundColor: theme.colors.surface,
+      padding: 15,
+      borderRadius: 10,
+      marginTop: 10,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    sliderHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 5,
+    },
+    slider: {
+      width: '100%',
+      height: 40,
+    },
+    sliderValue: {
+      fontWeight: '600',
+      color: theme.colors.text,
+    },
+    notice: {
+      backgroundColor: theme.colors.warningSurface,
+      padding: 15,
+      borderRadius: 8,
+      marginTop: 10,
+      borderWidth: 1,
+      borderColor: theme.colors.warning,
+    },
+    noticeText: {
+      fontSize: 14,
+      color: theme.colors.text,
+    },
+    demoButton: {
+      backgroundColor: theme.colors.info,
+      padding: 15,
+      borderRadius: 10,
+      alignItems: 'center',
+      marginTop: 10,
+    },
+    demoButtonText: {
+      color: theme.colors.onPrimary,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    infoCard: {
+      backgroundColor: theme.colors.surface,
+      padding: 20,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    infoText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: theme.colors.text,
+      marginBottom: 5,
+    },
+    versionText: {
+      fontSize: 14,
+      color: theme.colors.subtext,
+      marginBottom: 15,
+    },
+    descriptionText: {
+      fontSize: 14,
+      color: theme.colors.subtext,
+      lineHeight: 20,
+    },
+    progressCard: {
+      backgroundColor: theme.colors.surface,
+      padding: 20,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    progressItem: {
+      fontSize: 14,
+      color: theme.colors.text,
+      marginVertical: 5,
+    },
+    primaryButton: {
+      backgroundColor: theme.colors.primary,
+      padding: 15,
+      borderRadius: 10,
+      alignItems: 'center',
+      marginBottom: 10,
+    },
+    primaryButtonText: {
+      color: theme.colors.onPrimary,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    secondaryButton: {
+      backgroundColor: theme.colors.surfaceSecondary,
+      padding: 15,
+      borderRadius: 10,
+      alignItems: 'center',
+      marginBottom: 10,
+    },
+    secondaryButtonText: {
+      color: theme.colors.primary,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    dangerButton: {
+      backgroundColor: theme.colors.danger,
+      padding: 15,
+      borderRadius: 10,
+      alignItems: 'center',
+    },
+    disabledButton: {
+      opacity: 0.7,
+    },
+    dangerButtonText: {
+      color: theme.colors.onPrimary,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    footer: {
+      padding: 20,
+      alignItems: 'center',
+    },
+    footerText: {
+      fontSize: 12,
+      color: theme.colors.muted,
+      textAlign: 'center',
+    },
+    modalBackdrop: {
+      flex: 1,
+      backgroundColor: theme.colors.overlay,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 20,
+    },
+    modalContent: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: 12,
+      padding: 20,
+      width: '100%',
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    modalTitle: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      marginBottom: 10,
+      color: theme.colors.text,
+    },
+    modalDescription: {
+      fontSize: 14,
+      color: theme.colors.subtext,
+      marginBottom: 15,
+    },
+    modalInput: {
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      borderRadius: 8,
+      padding: 12,
+      marginBottom: 15,
+      color: theme.colors.text,
+      backgroundColor: theme.colors.surface,
+    },
+    modalActions: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+    },
+    modalActionButton: {
+      flex: 1,
+      marginHorizontal: 5,
+    },
+  });
