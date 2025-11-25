@@ -49,21 +49,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install Expo CLI
-        run: npm install -g expo-cli
-
       - name: Generate native Android project
         run: npx expo prebuild --platform android --clean
 
-      - name: Build APK
+      - name: Build Debug APK
         working-directory: android
-        run: ./gradlew assembleRelease
+        run: ./gradlew assembleDebug
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tmr-app-release
-          path: android/app/build/outputs/apk/release/*.apk
+          name: tmr-app-debug
+          path: android/app/build/outputs/apk/debug/*.apk
           retention-days: 30
 
   build-ios:
@@ -84,8 +81,7 @@ jobs:
       - name: Setup Expo
         uses: expo/expo-github-action@v8
         with:
-          expo-version: 6.x
-          eas-version: 16.x
+          eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: Install dependencies
